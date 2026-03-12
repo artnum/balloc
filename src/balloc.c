@@ -59,7 +59,8 @@ void *balloc(struct balloc_arena *arena, size_t size) {
     return NULL;
   }
 
-  size_t asize = BALLOC_ALIGN_SIZE(size) + BALLOC_ALIGN_SIZE(sizeof(size_t));
+  size_t aligned_data_size = BALLOC_ALIGN_SIZE(size);
+  size_t asize = aligned_data_size + BALLOC_ALIGN_SIZE(sizeof(size_t));
   if (asize < size) {
     return NULL;
   }
@@ -72,7 +73,7 @@ void *balloc(struct balloc_arena *arena, size_t size) {
   }
   uint8_t *tmp = arena->tail->content + arena->tail->used +
                  BALLOC_ALIGN_SIZE(sizeof(size_t));
-  *(size_t *)(tmp - BALLOC_ALIGN_SIZE(sizeof(size_t))) = asize;
+  *(size_t *)(tmp - BALLOC_ALIGN_SIZE(sizeof(size_t))) = aligned_data_size;
   arena->tail->used += asize;
   return tmp;
 }
