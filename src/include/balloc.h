@@ -24,14 +24,18 @@ struct balloc_chunk {
 struct balloc_arena {
   struct balloc_chunk *head;
   struct balloc_chunk *tail;
+  struct balloc_chunk *free;
   size_t chunk_size;
 };
 
 struct balloc_arena *balloc_new(size_t chunk_size);
 void balloc_destroy(struct balloc_arena *arena);
+void balloc_reset(struct balloc_arena *arena); 
+void balloc_dump_stat(struct balloc_arena *arena); 
 void *balloc(struct balloc_arena *arena, size_t size);
 void *brealloc(struct balloc_arena *arena, void *ptr, size_t size);
 void *bmemdup(struct balloc_arena *arena, void *src, size_t len);
+
 /**
  * Duplicate a string
  *
