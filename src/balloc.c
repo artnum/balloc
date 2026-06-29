@@ -27,6 +27,8 @@ static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
         c->next = NULL;
         arena->tail->next = c;
         arena->tail = c;
+        arena->free_length--;
+        arena->used_length++;
         return c;
     }
   }
@@ -34,13 +36,13 @@ static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
   size_t ssize = BALLOC_ALIGN_SIZE(sizeof(struct balloc_chunk));
   struct balloc_chunk *chunk = malloc(ssize + chunk_size);
   if (chunk) {
-    memset(chunk, 0, ssize);
     chunk->content = (uint8_t *)chunk + ssize;
     chunk->capacity = chunk_size;
     chunk->used = 0;
     chunk->next = NULL;
     if (arena->tail)  { arena->tail->next = chunk; }
     arena->tail = chunk;
+    arena->used_length++;
   }
   return chunk;
 }
@@ -97,6 +99,25 @@ void balloc_reset(struct balloc_arena *arena) {
   c->next = NULL;
   arena->tail = c;
   arena->head = c;
+  arena->free_length += arena->used_length;
+  arena->used_length = 0;
+}
+
+void balloc_compact(struct balloc_arena *arena) {
+    assert(arena != NULL);
+    size_t to_remove = arena->free_length / 2;
+    struct balloc_chunk *c = arena->free;
+    while(c) {
+        struct balloc_chunk *n = c->next;
+        free(c);
+        arena->free_length--;
+        to_remove--;
+        if (to_remove == 0) {
+            arena->free = n;
+            break;
+        }
+        c = n;
+    }
 
 }
 
@@ -112,11 +133,14 @@ void *balloc(struct balloc_arena *arena, size_t size) {
     return NULL;
   }
   struct balloc_chunk *c = NULL;
-  if (arena->tail->used + asize >= arena->tail->capacity) {
+  if (arena->tail->used + asize > arena->tail->capacity) {
     c =  _new_chunk(arena, 
                     size > arena->chunk_size ? asize : arena->chunk_size);
   } else {
     c = arena->tail;
+  }
+  if (!c) {
+    return NULL;
   }
   uint8_t *tmp = c->content + c->used + BALLOC_ALIGN_SIZE(sizeof(size_t));
   
@@ -180,19 +204,22 @@ void balloc_dump_stat(struct balloc_arena *arena) {
     struct balloc_chunk * c = arena->head;
     size_t tused = 0;
     size_t tcap = 0;
-
+    size_t ucount = 0;
     while(c) {
         tused += c->used;
         tcap += c->capacity;
         c = c->next;
+        ucount++;
     }
-    int fcount = 0;
+    size_t fcount = 0;
     c = arena->free;
     while(c) {
         fcount++;
         c = c->next;
     }
     float tusage = (float)tused / (float)tcap;
-    printf("TOTAL used %ld, capacity %ld, USAGE %.2f, FREE LIST %d\n", 
-           tused, tcap, tusage, fcount);
+    printf("TOTAL used %ld, capacity %ld, USAGE %.2f\n"
+           "Used length %ld (%ld), Free length %ld (%ld)\n", 
+           tused, tcap, tusage, arena->used_length, ucount,
+           arena->free_length, fcount);
 }

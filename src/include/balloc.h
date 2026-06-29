@@ -25,24 +25,98 @@ struct balloc_arena {
   struct balloc_chunk *head;
   struct balloc_chunk *tail;
   struct balloc_chunk *free;
+  size_t free_length;
+  size_t used_length;
   size_t chunk_size;
 };
 
+/**
+ * Create a new arena.
+ *
+ * @param chunk_size Size of the chunks, if not set it uses getpagesize, if 
+ *                   not available it uses 4096bytes
+ * 
+ * @return An arena or NULL in case of failure
+ */
 struct balloc_arena *balloc_new(size_t chunk_size);
+/**
+ * Destroy an arena.
+ * 
+ * @param arena Destroy the arena, free every chunk
+ */
 void balloc_destroy(struct balloc_arena *arena);
+/**
+ * Reset an arena.
+ * 
+ * @param arena Set all chunks to free so they can be reused
+ */
 void balloc_reset(struct balloc_arena *arena); 
+/**
+ * Compact free list.
+ * 
+ * @param arena Reduce the current free list by half. The current free list is
+ *              not the same size before and after a reset, so if you want to 
+ *              reduce the full chunk size, call it after balloc_reset.
+ */
+void balloc_compact(struct balloc_arena *arena); 
+/**
+ * Print some stats about current arena.
+ * 
+ * @param arena The arena you want to see stats
+ */
 void balloc_dump_stat(struct balloc_arena *arena); 
+/**
+ * Allocate some memory into the arena.
+ * 
+ * @param arena The arena to allocate to
+ * @param size  Quantity of bytes you want. A new chunk is created if the
+ *              current is too small, if the size is bigger than chunk_size a
+ *              whole chunk of that size will be created.
+ * 
+ * @return Pointer to the allocated memory or NULL in case of failure.
+ */
 void *balloc(struct balloc_arena *arena, size_t size);
+/**
+ * Reallocate some memory into the arena.
+ * 
+ * @param arena The arena to allocate to.
+ * @param ptr   The pointer to reallocate.
+ * @param len   The new size.
+ * 
+ * @return Pointer to the reallocated memory or NULL in case of failure.
+ * 
+ * @note this function do a simple balloc then memcpy.
+ */
 void *brealloc(struct balloc_arena *arena, void *ptr, size_t size);
+/**
+ * Duplicate some memory into the arena.
+ * 
+ * @param arena The arena to duplicate to.
+ * @param src   The source to duplicate.
+ * @param len   The amount you want to duplicate in bytes.
+ *
+ * @return Pointer to the duplicated memory or NULL in case of failure.
+ */
 void *bmemdup(struct balloc_arena *arena, void *src, size_t len);
 
 /**
- * Duplicate a string
+ * Duplicate a string.
  *
- * \return A pointer to a string, if a null pointer is passed, it returns an
- * empty string
+ * @param arena The arena to duplicate to.
+ * @param str   The string to duplicate.
+ * @param len   The amount you want to duplicate in bytes.
+ *
+ * @return Pointer to the duplicated string or NULL in case of failure.
  */
 char *bstrndup(struct balloc_arena *arena, const char *str, size_t len);
+/**
+ * Duplicate a string.
+ *
+ * @param arena The arena to duplicate to.
+ * @param str   The string to duplicate.
+ *
+ * @return Pointer to the duplicated string or NULL in case of failure.
+ */
 #define bstrdup(arena, str)                                                    \
   bstrndup((arena), (str), (str) != NULL ? strlen(str) : 0)
 #define boldsize(tmp)                                                          \
