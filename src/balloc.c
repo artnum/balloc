@@ -17,6 +17,10 @@ struct balloc_header_ptr {
     uint8_t opts;
 };
 
+#ifndef BALLOC_MMAP_TRIGGER_SIZE
+#define BALLOC_MMAP_TRIGGER_SIZE (2 * 1024 * 1024)
+#endif
+
 #define CHUNK_HEADER_SIZE BALLOC_ALIGN_SIZE(sizeof(struct balloc_chunk))
 #define BALLOC_HEADER_OFFSET BALLOC_ALIGN_SIZE(                               \
                              sizeof(struct balloc_header_ptr))
@@ -79,7 +83,7 @@ struct balloc_arena *balloc_new(size_t chunk_size) {
   if (arena) {
     memset(arena, 0, BALLOC_ALIGN_SIZE(sizeof(struct balloc_arena)));
     arena->chunk_size = chunk_size;
-    if (chunk_size > 2 * 1024 * 1024) {
+    if (chunk_size >= BALLOC_MMAP_TRIGGER_SIZE) {
       arena->mmap = true;
     }
   }
