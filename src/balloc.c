@@ -258,7 +258,8 @@ void *balloc_sec(struct balloc_arena *arena, size_t size) {
     return NULL;
   }
   struct balloc_header_ptr *ptr = NULL;
-  void * m = _balloc(arena, &arena->head, &arena->tail, &ptr, size, true);
+  void * m = _balloc(arena, &arena->sec_head, &arena->sec_tail, &ptr, size,
+                     true);
   if (ptr) {
     ptr->opts = 0x8;
   }
@@ -343,7 +344,7 @@ char *bstrndup_sec(struct balloc_arena *arena, const char *str, size_t len) {
     }
     return tmp;
   }
-  return _bstrndup(arena, str, len, false);
+  return _bstrndup(arena, str, len, true);
 }
 
 void *bmemdup(struct balloc_arena *arena, void *src, size_t len) {
