@@ -153,10 +153,11 @@ void balloc_reset(struct balloc_arena *arena) {
   if (arena->head) {
     c = arena->head;
     while(c) {
-      c->used = 0;
       if (c->locked) {
         munlock(c->content, c->capacity);
       }
+      c->used = 0;
+      c->locked = false;
       c = c->next;
     }
     arena->tail->next = arena->free;
@@ -171,6 +172,7 @@ void balloc_reset(struct balloc_arena *arena) {
         munlock(c->content, c->capacity);
       }
       c->used = 0;
+      c->locked = false;
       c = c->next;
     } 
     arena->sec_tail->next = arena->free;
