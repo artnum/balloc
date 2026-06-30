@@ -6,12 +6,25 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <sys/mman.h>
 
 #ifndef getpagesize
 #define getpagesize() 4096
 #endif
 
+struct balloc_header_ptr {
+    size_t size;
+    uint8_t opts;
+};
+
+#define CHUNK_HEADER_SIZE BALLOC_ALIGN_SIZE(sizeof(struct balloc_chunk))
+#define BALLOC_HEADER_OFFSET BALLOC_ALIGN_SIZE(                               \
+                             sizeof(struct balloc_header_ptr))
+#define GET_HEADER(ptr) (struct balloc_header_ptr *)(((uint8_t *)ptr) -       \
+                                                     BALLOC_HEADER_OFFSET)
+
 static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
+                                              struct balloc_chunk **target,
                                               size_t chunk_size) {
   if (arena->free) {
     struct balloc_chunk *c = NULL, *p = NULL;
@@ -24,24 +37,34 @@ static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
     if (c) {
         if (p) { p->next = c->next; }
         else   { arena->free = c->next; }
+        c->used = 0;
         c->next = NULL;
-        arena->tail->next = c;
-        arena->tail = c;
+        if (*target) { (*target)->next = c; }
+        *target = c;
         arena->free_length--;
         arena->used_length++;
         return c;
     }
   }
+  
+  struct balloc_chunk * chunk = NULL;
 
-  size_t ssize = BALLOC_ALIGN_SIZE(sizeof(struct balloc_chunk));
-  struct balloc_chunk *chunk = malloc(ssize + chunk_size);
-  if (chunk) {
-    chunk->content = (uint8_t *)chunk + ssize;
-    chunk->capacity = chunk_size;
+  uint8_t *tmp = NULL;
+  if (arena->mmap) {
+    tmp = mmap(NULL, chunk_size, PROT_READ | PROT_WRITE,
+               MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  } else {
+    tmp = malloc(chunk_size);
+  }
+
+  if (tmp) {
+    chunk = (struct balloc_chunk *)tmp;
+    chunk->content = tmp + CHUNK_HEADER_SIZE;
+    chunk->capacity = chunk_size - CHUNK_HEADER_SIZE;
     chunk->used = 0;
     chunk->next = NULL;
-    if (arena->tail)  { arena->tail->next = chunk; }
-    arena->tail = chunk;
+    if (*target) { (*target)->next = chunk; }
+    *target = chunk;
     arena->used_length++;
   }
   return chunk;
@@ -56,13 +79,18 @@ struct balloc_arena *balloc_new(size_t chunk_size) {
   if (arena) {
     memset(arena, 0, BALLOC_ALIGN_SIZE(sizeof(struct balloc_arena)));
     arena->chunk_size = chunk_size;
-    if (!_new_chunk(arena, chunk_size)) {
-      free(arena);
-      return NULL;
+    if (chunk_size > 2 * 1024 * 1024) {
+      arena->mmap = true;
     }
-    arena->head = arena->tail;
   }
   return arena;
+}
+
+static inline void balloc_shred(struct balloc_chunk *chunk) {
+    volatile uint8_t *p = chunk->content;
+    while(chunk->used--) {
+        *p++ = 0;
+    }
 }
 
 void balloc_destroy(struct balloc_arena *arena) {
@@ -72,33 +100,84 @@ void balloc_destroy(struct balloc_arena *arena) {
   c = arena->head;
   while (c) {
     n = c->next;
-    free(c);
+    if (c->locked) {
+      munlock(c->content, c->capacity);
+    }
+    if (arena->mmap) {
+      munmap(c, c->capacity + CHUNK_HEADER_SIZE);
+    } else {
+      free(c);
+    }
     c = n;
   }
   n = NULL;
+
+  c = arena->sec_head;
+  while (c) {
+    n = c->next;
+    balloc_shred(c);
+    if (c->locked) {
+      munlock(c->content, c->capacity);
+    }
+    if (arena->mmap) {
+      munmap(c, c->capacity + CHUNK_HEADER_SIZE);
+    } else {
+      free(c);
+    }
+    c = n;
+  }
+
   c = arena->free;
   while (c) {
     n = c->next;
-    free(c);
+    if (arena->mmap) {
+      munmap(c, c->capacity + CHUNK_HEADER_SIZE);
+    } else {
+      free(c);
+    }
     c = n;
   }
 
   free(arena);
 }
 
+
 void balloc_reset(struct balloc_arena *arena) {
   assert(arena != NULL);
-  struct balloc_chunk * c = arena->head;
-  while(c) {
-    c->used = 0;
-    c = c->next;
+  struct balloc_chunk * c = NULL;
+
+  if (arena->head) {
+    c = arena->head;
+    while(c) {
+      c->used = 0;
+      if (c->locked) {
+        munlock(c->content, c->capacity);
+      }
+      c = c->next;
+    }
+    arena->tail->next = arena->free;
+    arena->free = arena->head;
   }
-  arena->tail->next = arena->free;
-  arena->free = arena->head->next;
-  c = arena->head;
-  c->next = NULL;
-  arena->tail = c;
-  arena->head = c;
+  
+  if (arena->sec_head) {
+    c = arena->sec_head;
+    while(c) {
+      balloc_shred(c);
+      if (c->locked) {
+        munlock(c->content, c->capacity);
+      }
+      c->used = 0;
+      c = c->next;
+    } 
+    arena->sec_tail->next = arena->free;
+    arena->free = arena->sec_head;
+  }
+
+  arena->tail = NULL;
+  arena->head = NULL;
+  arena->sec_tail = NULL;
+  arena->sec_head = NULL;
+
   arena->free_length += arena->used_length;
   arena->used_length = 0;
 }
@@ -107,9 +186,13 @@ void balloc_compact(struct balloc_arena *arena) {
     assert(arena != NULL);
     size_t to_remove = arena->free_length / 2;
     struct balloc_chunk *c = arena->free;
-    while(c) {
+    while(to_remove && c) {
         struct balloc_chunk *n = c->next;
-        free(c);
+        if (arena->mmap) {
+          munmap(c, c->capacity + CHUNK_HEADER_SIZE);
+        } else {
+          free(c);
+        }
         arena->free_length--;
         to_remove--;
         if (to_remove == 0) {
@@ -121,33 +204,76 @@ void balloc_compact(struct balloc_arena *arena) {
 
 }
 
+static inline void *_balloc(struct balloc_arena *arena,
+                            struct balloc_chunk **head,
+                            struct balloc_chunk **tail, 
+                            struct balloc_header_ptr **ptr,
+                            size_t size,
+                            bool lock) {
+  size_t aligned_data_size = BALLOC_ALIGN_SIZE(size);
+  size_t asize = aligned_data_size + BALLOC_HEADER_OFFSET;
+  if (asize < size || asize + CHUNK_HEADER_SIZE < size) {
+    return NULL;
+  }
+  struct balloc_chunk *c = NULL;
+  if (*tail == NULL || ((*tail)->used + asize > (*tail)->capacity)) {
+    c =  _new_chunk(arena,
+                    tail,
+                    asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
+                        asize + CHUNK_HEADER_SIZE :
+                        arena->chunk_size);
+  } else {
+    c = *tail;
+  }
+  if (!c) {
+    return NULL;
+  }
+
+  if(lock && !c->locked) {
+      if(mlock(c->content, c->capacity) == 0) {
+        c->locked = true;
+      }
+  }
+
+  if (!*head) {
+    *head = c;
+  }
+  struct balloc_header_ptr *h = (struct balloc_header_ptr *)
+      ((uint8_t *)c->content + c->used);
+  uint8_t *m = c->content + c->used + BALLOC_HEADER_OFFSET;
+  h->size = size;
+  *ptr = h;
+  c->used += asize;
+
+  return m;
+}
+
+void *balloc_sec(struct balloc_arena *arena, size_t size) {
+  assert(arena != NULL);
+  if (size == 0) {
+    return NULL;
+  }
+  struct balloc_header_ptr *ptr = NULL;
+  void * m = _balloc(arena, &arena->head, &arena->tail, &ptr, size, true);
+  if (ptr) {
+    ptr->opts = 0x8;
+  }
+
+  return m;
+}
+
 void *balloc(struct balloc_arena *arena, size_t size) {
   assert(arena != NULL);
   if (size == 0) {
     return NULL;
   }
+  struct balloc_header_ptr *ptr = NULL;
+  void * m = _balloc(arena, &arena->head, &arena->tail, &ptr, size, false);
+  if (ptr) {
+    ptr->opts = 0x0;
+  }
 
-  size_t aligned_data_size = BALLOC_ALIGN_SIZE(size);
-  size_t asize = aligned_data_size + BALLOC_ALIGN_SIZE(sizeof(size_t));
-  if (asize < size) {
-    return NULL;
-  }
-  struct balloc_chunk *c = NULL;
-  if (arena->tail->used + asize > arena->tail->capacity) {
-    c =  _new_chunk(arena, 
-                    size > arena->chunk_size ? asize : arena->chunk_size);
-  } else {
-    c = arena->tail;
-  }
-  if (!c) {
-    return NULL;
-  }
-  uint8_t *tmp = c->content + c->used + BALLOC_ALIGN_SIZE(sizeof(size_t));
-  
-  *(size_t *)(tmp - BALLOC_ALIGN_SIZE(sizeof(size_t))) = aligned_data_size;
-
-  c->used += asize;
-  return tmp;
+  return m;
 }
 
 void *brealloc(struct balloc_arena *arena, void *ptr, size_t size) {
@@ -159,13 +285,36 @@ void *brealloc(struct balloc_arena *arena, void *ptr, size_t size) {
     return balloc(arena, size);
   }
 
-  size_t psize =
-      *(size_t *)((uint8_t *)ptr - BALLOC_ALIGN_SIZE(sizeof(size_t)));
-  void *tmp = balloc(arena, size);
+  struct balloc_header_ptr *h = GET_HEADER(ptr);
+  void *tmp = NULL;
+  if (h->opts & 0x8) {
+    tmp = balloc_sec(arena, size);
+  } else {
+    tmp = balloc(arena, size);
+  }
   if (tmp) {
-    memcpy(tmp, ptr, psize);
+    if (size < h->size) {
+      memcpy(tmp, ptr, size);
+    } else {
+      memcpy(tmp, ptr, h->size);
+    }
   }
 
+  return tmp;
+}
+
+static inline char *_bstrndup(struct balloc_arena *arena, const char *str,
+                       size_t len, bool sec) {
+  char *tmp = NULL;
+  if (!sec) {
+    tmp = balloc(arena, len + 1);
+  } else {
+    tmp = balloc_sec(arena, len + 1);
+  }
+  if (tmp) {
+    memcpy(tmp, str, len);
+    *(tmp + len) = '\0';
+  }
   return tmp;
 }
 
@@ -178,12 +327,19 @@ char *bstrndup(struct balloc_arena *arena, const char *str, size_t len) {
     }
     return tmp;
   }
-  char *tmp = balloc(arena, len + 1);
-  if (tmp) {
-    memcpy(tmp, str, len);
-    *(tmp + len) = '\0';
+  return _bstrndup(arena, str, len, false);
+}
+
+char *bstrndup_sec(struct balloc_arena *arena, const char *str, size_t len) {
+  assert(arena != NULL);
+  if (len == 0 || str == NULL) {
+    char *tmp = balloc(arena, 1);
+    if (tmp) {
+      *tmp = '\0';
+    }
+    return tmp;
   }
-  return tmp;
+  return _bstrndup(arena, str, len, false);
 }
 
 void *bmemdup(struct balloc_arena *arena, void *src, size_t len) {
@@ -192,6 +348,18 @@ void *bmemdup(struct balloc_arena *arena, void *src, size_t len) {
     return NULL;
   }
   void *tmp = balloc(arena, len);
+  if (tmp) {
+    memcpy(tmp, src, len);
+  }
+  return tmp;
+}
+
+void *bmemdup_sec(struct balloc_arena *arena, void *src, size_t len) {
+  assert(arena);
+  if (src == NULL || len == 0) {
+    return NULL;
+  }
+  void *tmp = balloc_sec(arena, len);
   if (tmp) {
     memcpy(tmp, src, len);
   }
