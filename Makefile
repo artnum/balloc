@@ -14,10 +14,10 @@ RM=rm -Rf
 NAME=balloc
 AR=ar
 
-all: build/$(NAME).a
+all: build build/$(NAME).a
 
-#$(NAME): build/$(NAME).a
-#	$(CC) $^ -o $(NAME) $(LIBS)
+build:
+	mkdir -p $@
 
 build/$(NAME).a: build/balloc.o
 	$(AR) rcs $@ $^
