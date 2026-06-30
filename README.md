@@ -15,11 +15,15 @@ It uses mmap for region (chunk) bigger than 2MiB and malloc for smaller one.
 
 ## Where to use it
 
-I use it in a Web backend. Needed to handle sensitive data and normal data as
-much as I needed to allocate during the whole request lifetime without thinking
-too much of freeing memory.
+I use it in a **Web backend**. I needed to handle _sensitive data_ and normal 
+data as much as I needed to allocate during the whole request lifetime without
+thinking too much of freeing memory.
 
-So this might be useful in WebAssembly.
+So this might be useful in **WebAssembly** (I don't know, never done any
+WebAssembly).                                            
+
+So when your _lifetimes_ are quite straigtforward and your data usage is easy
+to estimate, it works very well.
 
 ## Usage
 
