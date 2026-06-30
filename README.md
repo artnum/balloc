@@ -12,7 +12,16 @@ It uses mmap for region (chunk) bigger than 2MiB and malloc for smaller one.
   * Allocation are aligned.
   * A function to compact the free list.
 
-# Usage
+
+## Where to use it
+
+I use it in a Web backend. Needed to handle sensitive data and normal data as
+much as I needed to allocate during the whole request lifetime without thinking
+too much of freeing memory.
+
+So this might be useful in WebAssembly.
+
+## Usage
 
 You may want to build into a static library or directly add the code into your
 own compilation.
