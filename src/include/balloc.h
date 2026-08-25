@@ -23,10 +23,7 @@ struct balloc_chunk {
 
 struct balloc_arena {
   struct balloc_chunk *head;
-  struct balloc_chunk *tail;
-  struct balloc_chunk *free;
-  size_t free_length;
-  size_t used_length;
+  struct balloc_chunk *current;
   size_t chunk_size;
   bool mmap;
 };
