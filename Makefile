@@ -25,5 +25,8 @@ build/$(NAME).a: build/balloc.o
 build/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+test: test.c $(SRCFILES)
+	$(CC) $(CFLAGS) test.c $(SRCFILES) -o test
+
 clean:
 	$(RM) $(wildcard $(OBJFILES) $(NAME)) build/$(NAME).a vgcore.*

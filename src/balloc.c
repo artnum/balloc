@@ -61,6 +61,7 @@ static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
     chunk->content = tmp + CHUNK_HEADER_SIZE;
     chunk->capacity = chunk_size - CHUNK_HEADER_SIZE;
     chunk->used = 0;
+    chunk->next = NULL;
   }
   return chunk;
 }
@@ -103,6 +104,7 @@ void balloc_destroy(struct balloc_arena *arena) {
 void balloc_reset(struct balloc_arena *arena) {
     if (!arena) { return; }
     arena->current = arena->head;
+    for(struct balloc_chunk *c = arena->head; c; c = c->next) { c->used = 0; }
 }
 
 void balloc_compact(struct balloc_arena *arena) {
@@ -120,9 +122,7 @@ void balloc_compact(struct balloc_arena *arena) {
     arena->current->next = NULL; 
 }
 
-static inline void *_balloc(struct balloc_arena *arena,
-                            struct balloc_header_ptr **ptr,
-                            size_t size)
+void *balloc(struct balloc_arena *arena, size_t size)
 {
   size_t aligned_data_size = BALLOC_ALIGN_SIZE(size);
   size_t asize = aligned_data_size + BALLOC_HEADER_OFFSET;
@@ -130,18 +130,18 @@ static inline void *_balloc(struct balloc_arena *arena,
     return NULL;
   }
   struct balloc_chunk *c = arena->current;
-  if (arena->current && 
-      arena->current->used + asize > arena->current->capacity) {
+  if (!arena->current || (arena->current && 
+      arena->current->used + asize > arena->current->capacity)) {
     c = _new_chunk(arena,
                    asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
-                    asize + CHUNK_HEADER_SIZE :
-                     arena->chunk_size);
+                   asize + CHUNK_HEADER_SIZE : arena->chunk_size);
     if (!arena->head) {
         arena->head = c;
     }
-    c->next = arena->current->next;
+    if (arena->current) {
+        arena->current->next = c;
+    }
     arena->current = c;
-   
   }
 
   if (!c) {
@@ -152,22 +152,11 @@ static inline void *_balloc(struct balloc_arena *arena,
       ((uint8_t *)c->content + c->used);
   uint8_t *m = c->content + c->used + BALLOC_HEADER_OFFSET;
   h->size = size;
-  *ptr = h;
   c->used += asize;
 
   return m;
 }
 
-void *balloc(struct balloc_arena *arena, size_t size) {
-  assert(arena != NULL);
-  if (size == 0) {
-    return NULL;
-  }
-  struct balloc_header_ptr *ptr = NULL;
-  void * m = _balloc(arena, &ptr, size);
-
-  return m;
-}
 
 void *brealloc(struct balloc_arena *arena, void *ptr, size_t size) {
   assert(arena != NULL);
