@@ -33,7 +33,7 @@ static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
   if (arena->free) {
     struct balloc_chunk *c = NULL, *p = NULL;
     for(c = arena->free; c; c = c->next) {
-      if (c->capacity >= chunk_size) {
+      if (c->capacity >= chunk_size - CHUNK_HEADER_SIZE) {
         break;
       }
       p = c;
