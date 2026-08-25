@@ -62,6 +62,34 @@ bool test_allocation_after_reset(struct balloc_arena *a, int *test,
     return true;
 }
 
+bool test_allocation_with_big(struct balloc_arena *a, int *test, int *passed) {
+    int allocs = 0;
+    if (!test_allocation(a, test, passed, &allocs)) {
+        return false;
+    }
+    balloc_reset(a);
+    (*test)++;
+    void *ptr = balloc(a, 40960);
+    if (!ptr) {
+        fprintf(stderr, "Allocation of a big chunk failed\n");
+        return false;
+    }   
+    (*passed)++;
+
+    (*test)++;
+    int i = 0;
+    for (struct balloc_chunk *c = a->head; c; c = c->next) {
+        i++;
+    }
+    if (i != allocs + 1) {
+        fprintf(stderr, "Allocating an oversize chunk triggered broken chain "
+                "after reset, got %i wanted %i\n", i, allocs + 1);
+        return false;
+    }
+    (*passed)++;
+    return true;
+}
+
 int main(void) {
     int test = 0;
     int passed = 0;
@@ -71,6 +99,7 @@ int main(void) {
     assert(test_allocation(a, &test, &passed, &allocs) == true);
     assert(test_reset_succeed(a, &test, &passed) == true);
     assert(test_allocation_after_reset(a, &test, &passed, allocs) == true);
+    assert(test_allocation_with_big(a, &test, &passed) == true);
 
     printf("Total test %d, passed %d\n", test, passed);
     balloc_destroy(a);
