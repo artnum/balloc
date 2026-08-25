@@ -28,23 +28,8 @@ struct balloc_header_ptr {
                                                      BALLOC_HEADER_OFFSET)
 
 static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
-                                              size_t chunk_size,
-                                              bool *link) {
-  *link = false;
-  if (arena->current && arena->current->next) {
-    struct balloc_chunk *c = NULL;
-    for(c = arena->current->next; c; c = c->next) {
-      if (c->capacity >= chunk_size - CHUNK_HEADER_SIZE) {
-        break;
-      }
-    }
-    if (c) {
-        c->used = 0;
-        return c;
-    }
-  }
-  
-  *link = true;
+                                              size_t chunk_size) {
+    
   struct balloc_chunk * chunk = NULL;
 
   uint8_t *tmp = NULL;
@@ -134,22 +119,36 @@ void *balloc(struct balloc_arena *arena, size_t size)
   }
   struct balloc_chunk *c = arena->current;
   if (!arena->current || (arena->current && 
-      arena->current->used + asize > arena->current->capacity)) {
-    bool link = false;
-    c = _new_chunk(arena,
-                   asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
-                   asize + CHUNK_HEADER_SIZE : arena->chunk_size, &link);
-    if (!c) { 
-        return NULL;
+      arena->current->used + asize > arena->current->capacity))
+  {
+    size_t chunk_size =  asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
+        asize + CHUNK_HEADER_SIZE : arena->chunk_size;
+    if (c && c->next) {
+      for(c = arena->current->next; c; c = c->next) {
+        if (c->capacity - c->used >= chunk_size - CHUNK_HEADER_SIZE) {
+          break;
+        }
+      }
     }
+    if (c && (c->capacity - c->used < chunk_size - CHUNK_HEADER_SIZE)) {
+        c = NULL;
+    }
+    if(!c) {
+      c = _new_chunk(arena,
+                     asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
+                     asize + CHUNK_HEADER_SIZE : arena->chunk_size);
+      if (!c) { 
+          return NULL;
+      }
     
-    if (!arena->head) {
-        arena->head = c;
-    }
+      if (!arena->head) {
+          arena->head = c;
+      }
 
-    if (arena->current && link) {
-        c->next = arena->current->next;
-        arena->current->next = c;
+      if (arena->current ) {
+          c->next = arena->current->next;
+          arena->current->next = c;
+      } 
     }
     arena->current = c;
   }
