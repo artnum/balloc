@@ -100,9 +100,6 @@ void balloc_destroy(struct balloc_arena *arena) {
   c = arena->head;
   while (c) {
     n = c->next;
-    if (c->locked) {
-      munlock(c->content, c->capacity);
-    }
     if (arena->mmap) {
       munmap(c, c->capacity + CHUNK_HEADER_SIZE);
     } else {
@@ -133,11 +130,7 @@ void balloc_reset(struct balloc_arena *arena) {
   if (arena->head) {
     c = arena->head;
     while(c) {
-      if (c->locked) {
-        munlock(c->content, c->capacity);
-      }
       c->used = 0;
-      c->locked = false;
       c = c->next;
     }
     arena->tail->next = arena->free;

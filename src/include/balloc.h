@@ -19,7 +19,6 @@ struct balloc_chunk {
   size_t capacity;
   size_t used;
   void *next;
-  bool locked;
 };
 
 struct balloc_arena {
@@ -79,15 +78,6 @@ void balloc_dump_stat(struct balloc_arena *arena);
  */
 void *balloc(struct balloc_arena *arena, size_t size);
 /**
- * Allocate some memory into the secret arena.
- * It works as balloc but the memory allocated with *_sec variant will be 
- * shred on reset or destroy. It is designed to store passphrase and other
- * sensitive material in it.
- * It will try to mlock the memory but won't fail if it cannot do it, so chunk
- * might be swapped to disk.
- */
-void *balloc_sec(struct balloc_arena *arena, size_t size);
-/**
  * Reallocate some memory into the arena.
  * 
  * @param arena The arena to allocate to.
@@ -97,9 +87,6 @@ void *balloc_sec(struct balloc_arena *arena, size_t size);
  * @return Pointer to the reallocated memory or NULL in case of failure.
  * 
  * @note This function do a simple balloc then memcpy.
- * @note This function doesn't have a _sec equivalent as it the original
- *       pointer is in a sec arena, the new one will, if it is not, the new
- *       one will not be.
  * @warn If you pass a pointer that is not from a balloc arena, segfault is
  *       guarantee, there is not attempt to secure against that.
  */
@@ -114,10 +101,6 @@ void *brealloc(struct balloc_arena *arena, void *ptr, size_t size);
  * @return Pointer to the duplicated memory or NULL in case of failure.
  */
 void *bmemdup(struct balloc_arena *arena, void *src, size_t len);
-/**
- * Secure version of bmemdup
- */
-void *bmemdup_sec(struct balloc_arena *arena, void *src, size_t len);
 
 /**
  * Duplicate a string.
@@ -132,10 +115,6 @@ void *bmemdup_sec(struct balloc_arena *arena, void *src, size_t len);
  */
 char *bstrndup(struct balloc_arena *arena, const char *str, size_t len);
 /**
- * Secure version of bstrndup
- */
-char *bstrndup_sec(struct balloc_arena *arena, const char *str, size_t len); 
-/**
  * Duplicate a string.
  *
  * @param arena The arena to duplicate to.
@@ -147,15 +126,5 @@ char *bstrndup_sec(struct balloc_arena *arena, const char *str, size_t len);
  */
 #define bstrdup(arena, str)                                                   \
   bstrndup((arena), (str), (str) != NULL ? strlen(str) : 0)
-/**
- * Secure version of bstrdup_sec
- */
-#define bstrdup_sec(arena, str)                                               \
-  bstrndup_sec((arena), (str), (str) != NULL ? strlen(str) : 0)
-
-#define boldsize(tmp)                                                         \
-  ((tmp != NULL)                                                              \
-       ? *(size_t *)((uint8_t *)(tmp) - BALLOC_ALIGN_SIZE(sizeof(size_t)))    \
-       : 0)
 
 #endif /* BALLOC_H__ */
