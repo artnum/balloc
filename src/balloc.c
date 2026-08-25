@@ -57,6 +57,10 @@ static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
   if (arena->mmap) {
     tmp = mmap(NULL, chunk_size, PROT_READ | PROT_WRITE,
                MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    /* mmap does not return NULL */
+    if (tmp == MAP_FAILED) {
+        tmp = NULL;
+    }
   } else {
     tmp = malloc(chunk_size);
   }
