@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
 /**
@@ -151,8 +150,6 @@ char *bstrndup(struct balloc_arena *arena, const char *str, size_t len);
  *
  * @note If a null string is passed, it returns a valid empty string.
  */
-static inline char *bstrdup(struct balloc_arena *arena, char *str) {
-    return bstrndup(arena, str, str ? strlen(str) : 0);
-}
+char *bstrdup(struct balloc_arena *arena, char *str); 
 
 #endif /* BALLOC_H__ */

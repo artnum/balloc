@@ -1,10 +1,9 @@
 #include "include/balloc.h"
 
-#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/mman.h>
 
 #define BALLOC_ALIGN_SIZE(size)                                               \
@@ -183,7 +182,10 @@ static inline char *_bstrndup(struct balloc_arena *arena, const char *str,
                        size_t len) {
   char *tmp = NULL;
   size_t real_len = strnlen(str, len);
-  tmp = balloc(arena, len + 1);
+  if (real_len + 1 < real_len) {
+    return NULL;
+  }
+  tmp = balloc(arena, real_len + 1);
   if (tmp) {
     memcpy(tmp, str, real_len);
     *(tmp + real_len) = '\0';
@@ -201,6 +203,10 @@ char *bstrndup(struct balloc_arena *arena, const char *str, size_t len) {
     return tmp;
   }
   return _bstrndup(arena, str, len);
+}
+
+char *bstrdup(struct balloc_arena *arena, char *str) {
+    return bstrndup(arena, str, str ? strlen(str) : 0);
 }
 
 void *bmemdup(struct balloc_arena *arena, void *src, size_t len) {

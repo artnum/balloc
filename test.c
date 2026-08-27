@@ -347,5 +347,5 @@ int main(void) {
         fprintf(stderr, "balloc_new failed\n");
     }
 
-    return test == passed ? 0 : 1;
+    return retval ? 0 : 1;
 }
