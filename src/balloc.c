@@ -152,6 +152,8 @@ void *balloc(struct balloc_arena *arena, size_t size)
       arena->current->next = c;
     }
     arena->current = c;
+  } else {
+    arena->current = c;
   }
 
   struct balloc_header_ptr *h = (struct balloc_header_ptr *)

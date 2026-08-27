@@ -63,6 +63,7 @@ void balloc_reset(struct balloc_arena *arena);
  * of your run (you have work loop, the work loop has a variable memory usage
  * per work, at the end of each iteration, you compact and reset, so the chunks
  * staying in the list is always the least amount posssible).
+ * The first block always stay allocated.
  * 
  * @param arena Arena to compact
  */
