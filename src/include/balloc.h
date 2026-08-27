@@ -6,7 +6,10 @@
 #include <stdint.h>
 #include <string.h>
 
-
+/**
+ * If BALLOC_HAVE_MAP is not set, we try to detect if we have mmap. If we don't
+ * mmap is removed and the arena structure is a bit smaller
+ */
 #ifndef BALLOC_HAVE_MMAP
 #if defined(_WIN32) && !defined(__CYGWIN__)
     #define BALLOC_HAVE_MMAP 0
@@ -41,13 +44,6 @@
 #ifndef BALLOC_ALLOCATOR_ALIGNMENT
     #define BALLOC_ALLOCATOR_ALIGNMENT _Alignof(max_align_t)
 #endif /* BALLOC_ALLOCATOR_ALIGNMENT */
-
-struct balloc_chunk {
-  uint8_t *content;
-  size_t capacity;
-  size_t used;
-  void *next;
-};
 
 struct balloc_arena {
   struct balloc_chunk *head;

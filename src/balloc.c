@@ -23,6 +23,13 @@ struct balloc_header_ptr {
     size_t size;
 };
 
+struct balloc_chunk {
+  uint8_t *content;
+  size_t capacity;
+  size_t used;
+  void *next;
+};
+
 static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
                                               size_t chunk_size) {
 #if !BALLOC_HAVE_MMAP

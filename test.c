@@ -3,10 +3,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/* this opaque */
 #define BALLOC_ALIGN_SIZE(size)                                               \
 (((size) + (BALLOC_ALLOCATOR_ALIGNMENT - 1)) &                              \
 ~(BALLOC_ALLOCATOR_ALIGNMENT - 1))
 
+struct balloc_chunk {
+  uint8_t *content;
+  size_t capacity;
+  size_t used;
+  void *next;
+};
 
 static inline size_t _count_chunks(struct balloc_arena *a) {
     size_t i = 0;
