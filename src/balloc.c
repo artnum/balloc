@@ -179,7 +179,11 @@ static inline char *_bstrndup(struct balloc_arena *arena, const char *str,
   char *tmp = NULL;
   tmp = balloc(arena, len + 1);
   if (tmp) {
-    memcpy(tmp, str, len);
+    size_t i = 0;
+    for (i = 0; i < len; i++) {
+        *(tmp + i) = str[i];
+        if (str[i] == '\0') { break; }
+    }
     *(tmp + len) = '\0';
   }
   return tmp;

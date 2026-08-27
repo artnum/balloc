@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+
 static inline size_t _count_chunks(struct balloc_arena *a) {
     size_t i = 0;
     for(struct balloc_chunk *c = a->head; c; c = c->next) { i++; }
@@ -17,7 +18,6 @@ bool test_allocation(struct balloc_arena *a, int *test, int *passed,
      */
     chunk = chunk / 3;
 
-    printf("Chunk size %lu\n", chunk);
     (*test)++;
     void *ptr = balloc(a, chunk);
     if (ptr == NULL) {
@@ -36,10 +36,7 @@ bool test_allocation(struct balloc_arena *a, int *test, int *passed,
         (*passed)++;
     }
     if (allocs) {
-        for (struct balloc_chunk *c = a->head; c; c = c->next) {
-            printf("CHUNK %d, size : %lu/used : %lu\n", (*allocs), c->capacity, c->used);
-            (*allocs)++;
-        }
+        *allocs =  _count_chunks(a);
 
         (*test)++;
         /* with those settings, this should be 16 chunks, the 1 alloc then
@@ -115,7 +112,6 @@ bool test_allocation_with_big(struct balloc_arena *a, int *test, int *passed) {
 
 bool test_simple(struct balloc_arena *a, int *test, int *passed) {
     size_t chunk = a->chunk_size - BALLOC_ALIGN_SIZE(sizeof(struct balloc_chunk));
-    printf("Chunk size is %lu\n", chunk);
     (*test)++;
     void * ptr = balloc(a, chunk);
     if (!ptr) { return false; }
@@ -140,33 +136,86 @@ bool test_simple(struct balloc_arena *a, int *test, int *passed) {
     return true;
 }
 
+bool test_bstrndup(struct balloc_arena *a, int *test, int *passed) {
+    (*test)++;
+    char * ptr = bstrndup(a, "test", 20);
+    if (!ptr) { 
+        fprintf(stderr, "[%03d] Duplication failed\n", __LINE__);
+        return false; 
+    }
+    (*passed)++;
+    (*test)++;
+    if (strlen(ptr) != 4) { 
+        fprintf(stderr, "[%03d] Wrong length : %lu \"%s\"\n", __LINE__,
+                strlen(ptr), ptr);
+        return false;
+    }
+    (*passed)++;
+    (*test)++;
+    if (strcmp(ptr, "test") != 0) {
+        fprintf(stderr, "[%03d] strcmp failed \"%s\"\n", __LINE__, ptr);
+        return false; 
+    }
+    (*passed)++;
+
+    (*test)++;
+    ptr = bstrndup(a, "test", 4);
+    if (!ptr) {
+        fprintf(stderr, "[%03d] Duplication failed\n", __LINE__);
+        return false;
+    }
+    (*passed)++;
+    (*test)++;
+    if (strlen(ptr) != 4) {
+        fprintf(stderr, "[%03d] Wrong length : %lu \"%s\"\n", __LINE__,
+                strlen(ptr), ptr);
+        return false;
+    }
+    (*passed)++;
+    (*test)++;
+    if (strcmp(ptr, "test") != 0) { 
+        fprintf(stderr, "[%03d] strcmp failed \"%s\"\n", __LINE__, ptr);
+        return false; 
+    }
+    (*passed)++;
+
+    return true;
+}
+
+
+#define test(y, x) do { (x) ? printf("+++ %s : ok\n", (y)) : \
+    printf("+++ %s : failed\n", y); } while(0)
+
 int main(void) {
     int test = 0;
     int passed = 0;
     int allocs = 0;
     struct balloc_arena *a = balloc_new(4096);
-    assert(a != NULL);
-    printf("+++ Test simple allocation +++\n");
-    assert(test_simple(a, &test, &passed) == true);
-    printf("+++ Passed +++\n");
-    balloc_destroy(a);
+    if (a) { 
+        
+        test("Test simple ", test_simple(a, &test, &passed));
+        
+        /* The side effect of test_simple is that is test reset/compact :
+         * value have been calculated manually and if reset/compact doesn't
+         * free all chunks, it breaks tests down the road. This could be 
+         * improved.
+         */
+        balloc_reset(a);
+        balloc_compact(a);
 
+        test("Test simple allocation", test_allocation(a, &test, &passed, &allocs));
+        test("Test reset", test_reset_succeed(a, &test, &passed));
+        test("Test allocation after reset",
+             test_allocation_after_reset(a, &test, &passed, allocs));
+        test("Test allocation with big",
+             test_allocation_with_big(a, &test, &passed));
 
-    a = balloc_new(4096);
-    assert(a != NULL);
-    printf("+++ Test simple allocation +++\n");
-    assert(test_allocation(a, &test, &passed, &allocs) == true);
-    printf("+++ Passed +++\n");
-    printf("+++ Test reset +++\n");
-    assert(test_reset_succeed(a, &test, &passed) == true);
-    printf("+++ Passed +++\n");
-    printf("+++ Test allocation after reset +++\n");
-    assert(test_allocation_after_reset(a, &test, &passed, allocs) == true);
-    printf("+++ Passed +++\n");
-    printf("+++ Test allocation with big +++\n");
-    assert(test_allocation_with_big(a, &test, &passed) == true);
-    printf("+++ Passed +++\n");
+        test("Test bstrndup", test_bstrndup(a, &test, &passed));
+        
+        printf("Total test %d, passed %d\n", test, passed);
+        balloc_destroy(a);
+    } else {
+        fprintf(stderr, "balloc_new failed\n");
+    }
 
-    printf("Total test %d, passed %d\n", test, passed);
-    balloc_destroy(a);
 }

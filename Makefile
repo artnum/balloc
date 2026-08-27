@@ -1,5 +1,6 @@
 DEBUG ?= 1
 CC=gcc
+CLANG=clang-21
 
 ifeq ($(DEBUG),1)
 CFLAGS=-ggdb -Wall -Wextra -pedantic -O0
@@ -26,8 +27,8 @@ build/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 test: test.c $(SRCFILES)
-	$(CC) $(CFLAGS) test.c $(SRCFILES) -o test
-	./test
+	$(CLANG) -fsanitize-address-use-after-return=always -fsanitize=address -fno-omit-frame-pointer  $(CFLAGS) test.c $(SRCFILES) -o test
+	ASAN_OPTIONS=detect_leaks=1 ASAN_OPTIONS=detect_stack_use_after_return=1 ./test
 
 clean:
 	$(RM) $(wildcard $(OBJFILES) $(NAME)) build/$(NAME).a vgcore.* test
