@@ -54,18 +54,6 @@ static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
   return chunk;
 }
 
-static inline struct balloc_chunk *_find_chunk(struct balloc_arena *arena,
-                                               size_t chunk_size) {
-    if (!arena->current || !arena->current->next) { return NULL; }
-    struct balloc_chunk *c = NULL;
-    for(c = arena->current->next; c; c = c->next) {
-      if (c->capacity - c->used >= chunk_size) {
-        return c;
-      }
-    }
-    return NULL;
-}
-
 struct balloc_arena *balloc_new(size_t chunk_size) {
   if (chunk_size == 0) {
     chunk_size = getpagesize();
@@ -121,6 +109,19 @@ void balloc_compact(struct balloc_arena *arena) {
     arena->current->next = NULL; 
 }
 
+#define _fit_current_chunk(arena, size) ((arena)->current && \
+    ((arena)->current->capacity - (arena)->current->used) >= (size))
+static inline struct balloc_chunk *_find_chunk(struct balloc_arena *arena,
+                                               size_t size) {
+    struct balloc_chunk *c = NULL;
+    for(c = arena->current; c; c = c->next) {
+      if ((c->capacity - c->used) >= size) {
+        return c;
+      }
+    }
+    return NULL;
+}
+
 void *balloc(struct balloc_arena *arena, size_t size)
 {
   size_t aligned_data_size = BALLOC_ALIGN_SIZE(size);
@@ -129,42 +130,33 @@ void *balloc(struct balloc_arena *arena, size_t size)
     return NULL;
   }
   struct balloc_chunk *c = NULL;
-  
-  /* new arena, no current, create chunk */
-  if (!arena->current) {
-    c = _new_chunk(arena,
-                   asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
-                   asize + CHUNK_HEADER_SIZE : arena->chunk_size);
-    if (!c) {
-        return NULL;
-    }
-    arena->head = c;
-    arena->current = c;
-    goto finish_me;
-  }
 
-  /* try to find on chunk that fit */
-  if (arena->current->used + asize < arena->current->capacity) {
+#ifndef NDEBUG
+  if (arena->current) {
+      fprintf(stderr, "Current %lu, Size %lu\n",
+              arena->current->capacity - arena->current->used, asize);
+  }
+#endif
+
+
+  if (_fit_current_chunk(arena, asize)) {
+    c = arena->current;
+  } else {
     c = _find_chunk(arena, asize);
-    if(c) {
-        goto finish_me; 
+    if (!c) {
+        c = _new_chunk(arena,
+                       asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
+                       asize + CHUNK_HEADER_SIZE : arena->chunk_size);
+        if (!c) { return NULL; }
+        if (!arena->head) {
+          arena->head = c;
+        } else {
+          c->next = arena->current->next;
+          arena->current->next = c;
+        }
     }
+    arena->current = c;
   }
-
-  /* need a new one, link it */
-  c = _new_chunk(arena,
-                 asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
-                 asize + CHUNK_HEADER_SIZE : arena->chunk_size);
-  if (!c) {
-      return NULL;
-  }
-
-  c->next = arena->current->next;
-  arena->current->next = c;
-  arena->current = c;
-
-finish_me:
-{
 
   struct balloc_header_ptr *h = (struct balloc_header_ptr *)
       ((uint8_t *)c->content + c->used);
@@ -173,7 +165,6 @@ finish_me:
   c->used += asize;
 
   return m;
-}
 }
 
 
