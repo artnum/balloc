@@ -205,11 +205,11 @@ char *bstrndup(struct balloc_arena *arena, const char *str, size_t len) {
   return _bstrndup(arena, str, len);
 }
 
-char *bstrdup(struct balloc_arena *arena, char *str) {
+char *bstrdup(struct balloc_arena *arena, const char *str) {
     return bstrndup(arena, str, str ? strlen(str) : 0);
 }
 
-void *bmemdup(struct balloc_arena *arena, void *src, size_t len) {
+void *bmemdup(struct balloc_arena *arena, const void *src, size_t len) {
   if (!arena || !src || len == 0) {
     return NULL;
   }

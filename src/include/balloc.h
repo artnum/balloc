@@ -126,7 +126,7 @@ void *brealloc(struct balloc_arena *arena, void *ptr, size_t size);
  *
  * @return Pointer to the duplicated memory or NULL in case of failure.
  */
-void *bmemdup(struct balloc_arena *arena, void *src, size_t len);
+void *bmemdup(struct balloc_arena *arena, const void *src, size_t len);
 
 /**
  * Duplicate a string.
@@ -150,6 +150,6 @@ char *bstrndup(struct balloc_arena *arena, const char *str, size_t len);
  *
  * @note If a null string is passed, it returns a valid empty string.
  */
-char *bstrdup(struct balloc_arena *arena, char *str); 
+char *bstrdup(struct balloc_arena *arena, const char *str); 
 
 #endif /* BALLOC_H__ */

@@ -303,6 +303,37 @@ bool test_null_0_alloc(struct balloc_arena *a, int *test, int *passed) {
     return true;
 }
 
+bool test_compact(struct balloc_arena *a, int *test, int *passed) {
+    balloc_reset(a);
+    (*test)++;
+    balloc_compact(a);
+    if (_count_chunks(a) != 1) {
+        fprintf(stderr, "[%03d] Count chunk is %zu instead of 1\n", __LINE__,
+                _count_chunks(a));
+        return false;
+    }
+    (*passed)++;
+    (*test)++;
+    /* this should skip first block and create a big block */
+    if (!balloc(a, 40960)) {
+        fprintf(stderr, "[%03d] Big block failed\n", __LINE__);
+        return false;
+    }
+    if (_count_chunks(a) != 2) {
+        fprintf(stderr, "[%03d] Count chunk is %zu instead of 2\n", __LINE__,
+                _count_chunks(a));
+        return false;
+    }
+    balloc_compact(a);
+    if (_count_chunks(a) != 2) {
+        fprintf(stderr, "[%03d] Count chunk is %zu instead of 2 after "
+                "compacting without reset\n", __LINE__, _count_chunks(a));
+        return false;
+    }
+    (*passed)++;
+    
+    return true;
+}
 
 #define test(y, x) do { bool r = false; \
     printf("RUN %s\n", (y)); \
@@ -339,7 +370,9 @@ int main(void) {
 
         test("Test bstrndup", test_bstrndup(a, &test, &passed));
         test("Test bstrdup", test_bstrdup(a, &test, &passed));
-        
+       
+        test("Test compact", test_compact(a, &test, &passed));
+
         if (retval) { passed++; }
         printf("Total test %d, passed %d\n", test, passed);
         balloc_destroy(a);
