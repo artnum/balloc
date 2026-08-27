@@ -6,6 +6,18 @@
 #include <stdint.h>
 #include <string.h>
 
+
+#ifndef BALLOC_HAVE_MMAP
+#if defined(_WIN32) && !defined(__CYGWIN__)
+    #define BALLOC_HAVE_MMAP 0
+#elif defined(__unix__) || defined(__unix) \
+   || (defined(__APPLE__) && defined(__MACH__))
+    #define BALLOC_HAVE_MMAP 1
+#else
+    #define BALLOC_HAVE_MMAP 0
+#endif
+#endif /* BALLOC_HAVE_MMAP */
+
 /**
  * Compile time option, default size of chunks. Default to 4KiB
  */
@@ -17,9 +29,11 @@
  * Compile time option, trigger the use of mmap if an arena is created with
  * chunk size equal or bigger than this value, default to 2MiB
  */
+#if BALLOC_HAVE_MMAP
 #ifndef BALLOC_MMAP_TRIGGER_SIZE
     #define BALLOC_MMAP_TRIGGER_SIZE (2 * 1024 * 1024)
 #endif /* BALLOC_MMAP_TRIGGER_SIZE */
+#endif /* BALLOC_HAVE_MMAP */
 
 /**
  * Compile time option, to set alignment
@@ -27,7 +41,6 @@
 #ifndef BALLOC_ALLOCATOR_ALIGNMENT
     #define BALLOC_ALLOCATOR_ALIGNMENT _Alignof(max_align_t)
 #endif /* BALLOC_ALLOCATOR_ALIGNMENT */
-
 
 struct balloc_chunk {
   uint8_t *content;
@@ -40,7 +53,9 @@ struct balloc_arena {
   struct balloc_chunk *head;
   struct balloc_chunk *current;
   size_t chunk_size;
+#if BALLOC_HAVE_MMAP
   bool mmap;
+#endif /* BALLOC_HAVE_MMAP */
 };
 
 /**

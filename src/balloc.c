@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#if BALLOC_HAVE_MMAP
 #include <sys/mman.h>
+#endif
 
 #define BALLOC_ALIGN_SIZE(size)                                               \
 (((size) + (BALLOC_ALLOCATOR_ALIGNMENT - 1)) &                              \
@@ -23,10 +25,14 @@ struct balloc_header_ptr {
 
 static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
                                               size_t chunk_size) {
-    
+#if !BALLOC_HAVE_MMAP
+    (void)arena;
+#endif /* BALLOC_HAVE_MMAP */
   struct balloc_chunk * chunk = NULL;
 
   uint8_t *tmp = NULL;
+
+#if BALLOC_HAVE_MMAP
   if (arena->mmap) {
     tmp = mmap(NULL, chunk_size, PROT_READ | PROT_WRITE,
                MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
@@ -37,6 +43,9 @@ static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
   } else {
     tmp = malloc(chunk_size);
   }
+#else
+  tmp = malloc(chunk_size);
+#endif /* BALLOC_HAVE_MMAP */
 
   if (tmp) {
     chunk = (struct balloc_chunk *)tmp;
@@ -61,9 +70,13 @@ struct balloc_arena *balloc_new(size_t chunk_size) {
   if (arena) {
     memset(arena, 0, BALLOC_ALIGN_SIZE(sizeof(struct balloc_arena)));
     arena->chunk_size = chunk_size;
+
+#if BALLOC_HAVE_MMAP
     if (chunk_size >= BALLOC_MMAP_TRIGGER_SIZE) {
       arena->mmap = true;
     }
+#endif /* BALLOC_HAVE_MMAP */
+
     /* we always want one chunk present */
     struct balloc_chunk *c = _new_chunk(arena, chunk_size);
     if (!c) {
@@ -85,11 +98,15 @@ void balloc_destroy(struct balloc_arena *arena) {
   c = arena->head;
   while (c) {
     n = c->next;
+#if BALLOC_HAVE_MMAP
     if (arena->mmap) {
       munmap(c, c->capacity + CHUNK_HEADER_SIZE);
     } else {
       free(c);
     }
+#else 
+    free(c);
+#endif /* BALLOC_HAVE_MMAP */
     c = n;
   }
   n = NULL;
@@ -107,11 +124,15 @@ void balloc_compact(struct balloc_arena *arena) {
     if (!arena || !arena->current || !arena->current->next) { return; }
     for(struct balloc_chunk *c = arena->current->next; c;) {
         struct balloc_chunk *n = c->next;
+#if BALLOC_HAVE_MMAP
         if (arena->mmap) {
           munmap(c, c->capacity + CHUNK_HEADER_SIZE);
         } else {
           free(c);
         }
+#else 
+        free(c);
+#endif /* BALLOC_HAVE_MMAP */
         c = n;
     }
     arena->current->next = NULL; 

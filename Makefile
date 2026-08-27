@@ -27,8 +27,15 @@ build/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 test: test.c $(SRCFILES)
-	$(CLANG) -fsanitize-address-use-after-return=always -fsanitize=address -fno-omit-frame-pointer  $(CFLAGS) test.c $(SRCFILES) -o test
-	ASAN_OPTIONS=detect_leaks=1:detect_stack_use_after_return=1 ./test
+	echo "Classic run"
+	$(CLANG) -fsanitize-address-use-after-return=always -fsanitize=address -fno-omit-frame-pointer  $(CFLAGS) test.c $(SRCFILES) -o test1
+	ASAN_OPTIONS=detect_leaks=1:detect_stack_use_after_return=1 ./test1
+	echo "Force mmap usage"
+	$(CLANG) -DBALLOC_MMAP_TRIGGER_SIZE=0 -fsanitize-address-use-after-return=always -fsanitize=address -fno-omit-frame-pointer  $(CFLAGS) test.c $(SRCFILES) -o test2
+	ASAN_OPTIONS=detect_leaks=1:detect_stack_use_after_return=1 ./test2
+	echo "Disable mmap support"
+	$(CLANG) -DBALLOC_HAVE_MMAP=0 -fsanitize-address-use-after-return=always -fsanitize=address -fno-omit-frame-pointer  $(CFLAGS) test.c $(SRCFILES) -o test3
+	ASAN_OPTIONS=detect_leaks=1:detect_stack_use_after_return=1 ./test3
 
-clean:
-	$(RM) $(wildcard $(OBJFILES) $(NAME)) build/$(NAME).a vgcore.* test
+clean: 
+	$(RM) $(wildcard $(OBJFILES) $(NAME)) build/$(NAME).a vgcore.* test1 test2 test3
