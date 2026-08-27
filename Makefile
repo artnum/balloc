@@ -28,7 +28,7 @@ build/%.o: src/%.c
 
 test: test.c $(SRCFILES)
 	$(CLANG) -fsanitize-address-use-after-return=always -fsanitize=address -fno-omit-frame-pointer  $(CFLAGS) test.c $(SRCFILES) -o test
-	ASAN_OPTIONS=detect_leaks=1 ASAN_OPTIONS=detect_stack_use_after_return=1 ./test
+	ASAN_OPTIONS=detect_leaks=1:detect_stack_use_after_return=1 ./test
 
 clean:
 	$(RM) $(wildcard $(OBJFILES) $(NAME)) build/$(NAME).a vgcore.* test

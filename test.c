@@ -111,18 +111,29 @@ bool test_allocation_with_big(struct balloc_arena *a, int *test, int *passed) {
 }
 
 bool test_simple(struct balloc_arena *a, int *test, int *passed) {
-    size_t chunk = a->chunk_size - BALLOC_ALIGN_SIZE(sizeof(struct balloc_chunk));
+    /* allocation 3000 will fit ONE chunk without having enough space to fit
+     * a second allocation
+     */
+    size_t chunk = 3000;
     (*test)++;
     void * ptr = balloc(a, chunk);
     if (!ptr) { return false; }
     (*passed)++;
     (*test)++;
-    if (_count_chunks(a) != 1) { return false; }
+    if (_count_chunks(a) != 1) {
+        fprintf(stderr, "[%03d] Wrong chunk count : %zu\n", __LINE__, 
+                _count_chunks(a));
+        return false; 
+    }
     (*passed)++;
     (*test)++;
     balloc_reset(a);
     balloc(a, chunk);
-    if (_count_chunks(a) != 1) { return false; }
+    if (_count_chunks(a) != 1) {
+        fprintf(stderr, "[%03d] Wrong chunk count : %zu\n", __LINE__, 
+                _count_chunks(a));
+        return false; 
+    }
     (*passed)++;
 
     (*test)++;
@@ -130,7 +141,11 @@ bool test_simple(struct balloc_arena *a, int *test, int *passed) {
     if (!balloc(a, chunk) || !balloc(a, chunk)) { return false; }
     balloc_reset(a);
     if (!balloc(a, chunk) || !balloc(a, chunk)) { return false; }
-    if (_count_chunks(a) != 2) { return false; }
+    if (_count_chunks(a) != 2) { 
+        fprintf(stderr, "[%03d] Wrong chunk count : %zu\n", __LINE__, 
+                _count_chunks(a));
+        return false; 
+    }
     (*passed)++;
 
     return true;

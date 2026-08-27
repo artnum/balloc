@@ -57,6 +57,10 @@ struct balloc_arena *balloc_new(size_t chunk_size) {
   if (chunk_size == 0) {
     chunk_size = getpagesize();
   }
+  if (chunk_size <= CHUNK_HEADER_SIZE) {
+    return NULL;
+  }
+
   struct balloc_arena *arena =
       malloc(BALLOC_ALIGN_SIZE(sizeof(struct balloc_arena)));
   if (arena) {
@@ -65,6 +69,14 @@ struct balloc_arena *balloc_new(size_t chunk_size) {
     if (chunk_size >= BALLOC_MMAP_TRIGGER_SIZE) {
       arena->mmap = true;
     }
+    /* we always want one chunk present */
+    struct balloc_chunk *c = _new_chunk(arena, chunk_size);
+    if (!c) {
+        free(arena);
+        return NULL;
+    }
+    arena->head = c;
+    arena->current = c;
   }
   return arena;
 }
