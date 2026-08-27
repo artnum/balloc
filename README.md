@@ -9,6 +9,11 @@ Typical use: a web request — read, process, answer — then
 
 License: **MIT**. See [LICENSE](LICENSE). Copyright 2026 Etienne Bagnoud.
 
+## AI disclosure
+
+README.md is from Grok. Code review skills have been used to fix code. Code
+human-written. Commits from Grok are always under his name.
+
 ## How it works
 
 The arena is a linked list of **chunks**. `balloc_new()` creates the first
