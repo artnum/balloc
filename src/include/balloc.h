@@ -8,8 +8,9 @@
 #include <string.h>
 
 #ifndef BALLOC_ALLOCATOR_ALIGNMENT
-#define BALLOC_ALLOCATOR_ALIGNMENT sizeof(max_align_t)
+    #define BALLOC_ALLOCATOR_ALIGNMENT _Alignof(max_align_t)
 #endif
+
 #define BALLOC_ALIGN_SIZE(size)                                               \
   (((size) + (BALLOC_ALLOCATOR_ALIGNMENT - 1)) &                              \
    ~(BALLOC_ALLOCATOR_ALIGNMENT - 1))
@@ -58,12 +59,12 @@ void balloc_reset(struct balloc_arena *arena);
  * balloc_reset, this list is rewinded and next allocations use those previous
  * chunks.
  * Compact is a way to free all chunks passed the current one. If you call this
- * right after balloc_reset, you free everything. If you call before
- * balloc_reset you basically tailor the memory usage to the smallest version
- * of your run (you have work loop, the work loop has a variable memory usage
- * per work, at the end of each iteration, you compact and reset, so the chunks
- * staying in the list is always the least amount posssible).
- * The first block always stay allocated.
+ * right after balloc_reset, you free everything but the first chunk. If you 
+ * call before balloc_reset you basically tailor the memory usage to the
+ * smallest version of your run (you have work loop, the work loop has a
+ * variable memory usage per work, at the end of each iteration, you compact
+ * and reset, so the chunks staying in the list is always the least amount
+ * posssible).
  * 
  * @param arena Arena to compact
  */
@@ -126,7 +127,6 @@ char *bstrndup(struct balloc_arena *arena, const char *str, size_t len);
  *
  * @note If a null string is passed, it returns a valid empty string.
  */
-#define bstrdup(arena, str)                                                   \
-  bstrndup((arena), (str), (str) != NULL ? strlen(str) : 0)
+char *bstrdup(struct balloc_arena *arena, char *str);
 
 #endif /* BALLOC_H__ */

@@ -151,7 +151,86 @@ bool test_simple(struct balloc_arena *a, int *test, int *passed) {
     return true;
 }
 
+bool test_bstrdup(struct balloc_arena *a, int *test, int *passed) {
+    (*test)++;
+    if (!bstrdup(a, NULL)) {
+       fprintf(stderr, "[%03d] Failed on NULL string\n", __LINE__);
+       return false; 
+    }
+    (*passed)++;
+    (*test)++;
+    if (bstrdup(NULL, "string")) {
+       fprintf(stderr, "[%03d] Succeed on NULL arena\n", __LINE__);
+       return false; 
+    }
+    (*passed)++;
+
+
+    (*test)++;
+    char * ptr = bstrdup(a, "test");
+    if (!ptr) { 
+        fprintf(stderr, "[%03d] Duplication failed\n", __LINE__);
+        return false; 
+    }
+    (*passed)++;
+    (*test)++;
+    if (strlen(ptr) != 4) { 
+        fprintf(stderr, "[%03d] Wrong length : %lu \"%s\"\n", __LINE__,
+                strlen(ptr), ptr);
+        return false;
+    }
+    (*passed)++;
+    (*test)++;
+    if (strcmp(ptr, "test") != 0) {
+        fprintf(stderr, "[%03d] strcmp failed \"%s\"\n", __LINE__, ptr);
+        return false; 
+    }
+    (*passed)++;
+
+    (*test)++;
+    ptr = bstrdup(a, "test");
+    if (!ptr) {
+        fprintf(stderr, "[%03d] Duplication failed\n", __LINE__);
+        return false;
+    }
+    (*passed)++;
+    (*test)++;
+    if (strlen(ptr) != 4) {
+        fprintf(stderr, "[%03d] Wrong length : %lu \"%s\"\n", __LINE__,
+                strlen(ptr), ptr);
+        return false;
+    }
+    (*passed)++;
+    (*test)++;
+    if (strcmp(ptr, "test") != 0) { 
+        fprintf(stderr, "[%03d] strcmp failed \"%s\"\n", __LINE__, ptr);
+        return false; 
+    }
+    (*passed)++;
+
+    return true;
+}
+
 bool test_bstrndup(struct balloc_arena *a, int *test, int *passed) {
+    (*test)++;
+    if (!bstrndup(a, NULL, 100)) {
+       fprintf(stderr, "[%03d] Failed on NULL string\n", __LINE__);
+       return false; 
+    }
+    (*passed)++;
+    (*test)++;
+    if (!bstrndup(a, "string", 0)) {
+       fprintf(stderr, "[%03d] Failed on 0 size string\n", __LINE__);
+       return false; 
+    }
+    (*passed)++;
+    (*test)++;
+    if (bstrndup(NULL, "string", 10)) {
+       fprintf(stderr, "[%03d] Succeed on NULL arena\n", __LINE__);
+       return false; 
+    }
+    (*passed)++;
+
     (*test)++;
     char * ptr = bstrndup(a, "test", 20);
     if (!ptr) { 
@@ -197,6 +276,29 @@ bool test_bstrndup(struct balloc_arena *a, int *test, int *passed) {
     return true;
 }
 
+bool test_null_0_alloc(struct balloc_arena *a, int *test, int *passed) {
+    (*test)++;
+    if (balloc(NULL, 100)) {
+        fprintf(stderr, "[%03d] balloc on a NULL arena suceeded\n", __LINE__);
+        return false;
+    }
+    (*passed)++;
+    (*test)++;
+    if (balloc(a, 0)) {
+        fprintf(stderr, "[%03d] balloc on with 0 size suceeded\n", __LINE__);
+        return false;
+    }
+    (*passed)++;
+    (*test)++;
+    if (balloc(NULL, 0)) {
+        fprintf(stderr, "[%03d] balloc on with 0 size and NULL arena "
+                "suceeded\n", __LINE__);
+        return false;
+    }
+    (*passed)++;
+    return true;
+}
+
 
 #define test(y, x) do { (x) ? printf("+++ %s : ok\n", (y)) : \
     printf("+++ %s : failed\n", y); } while(0)
@@ -206,8 +308,10 @@ int main(void) {
     int passed = 0;
     int allocs = 0;
     struct balloc_arena *a = balloc_new(4096);
+    test++;
     if (a) { 
-        
+
+        test("Test NULL/0", test_null_0_alloc(a, &test, &passed));
         test("Test simple ", test_simple(a, &test, &passed));
         
         /* The side effect of test_simple is that is test reset/compact :
@@ -226,11 +330,14 @@ int main(void) {
              test_allocation_with_big(a, &test, &passed));
 
         test("Test bstrndup", test_bstrndup(a, &test, &passed));
+        test("Test bstrdup", test_bstrdup(a, &test, &passed));
         
+        passed++;
         printf("Total test %d, passed %d\n", test, passed);
         balloc_destroy(a);
     } else {
         fprintf(stderr, "balloc_new failed\n");
     }
 
+    return test == passed ? 0 : 1;
 }

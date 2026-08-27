@@ -133,29 +133,26 @@ static inline struct balloc_chunk *_find_chunk(struct balloc_arena *arena,
 
 void *balloc(struct balloc_arena *arena, size_t size)
 {
+  if (arena == NULL || size == 0) {
+    return NULL;
+  }
+
   size_t aligned_data_size = BALLOC_ALIGN_SIZE(size);
   size_t asize = aligned_data_size + BALLOC_HEADER_OFFSET;
   if (asize < size || asize + CHUNK_HEADER_SIZE < size) {
     return NULL;
   }
-  struct balloc_chunk *c = NULL;
 
-  if ((c = _find_chunk(arena, asize)) == NULL) {
+  struct balloc_chunk *c = _find_chunk(arena, asize);
+  if (c == NULL) {
     c = _new_chunk(arena,
                    asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
                    asize + CHUNK_HEADER_SIZE : arena->chunk_size);
     if (!c) { return NULL; }
-    if (!arena->head) {
-      arena->head = c;
-    } else {
-      c->next = arena->current->next;
-      arena->current->next = c;
-    }
-    arena->current = c;
-  } else {
-    arena->current = c;
+    c->next = arena->current->next;
+    arena->current->next = c;
   }
-
+  arena->current = c;
   struct balloc_header_ptr *h = (struct balloc_header_ptr *)
       ((uint8_t *)c->content + c->used);
   uint8_t *m = c->content + c->used + BALLOC_HEADER_OFFSET;
@@ -191,20 +188,17 @@ void *brealloc(struct balloc_arena *arena, void *ptr, size_t size) {
 static inline char *_bstrndup(struct balloc_arena *arena, const char *str,
                        size_t len) {
   char *tmp = NULL;
+  size_t real_len = strnlen(str, len);
   tmp = balloc(arena, len + 1);
   if (tmp) {
-    size_t i = 0;
-    for (i = 0; i < len; i++) {
-        *(tmp + i) = str[i];
-        if (str[i] == '\0') { break; }
-    }
-    *(tmp + len) = '\0';
+    memcpy(tmp, str, real_len);
+    *(tmp + real_len) = '\0';
   }
   return tmp;
 }
 
 char *bstrndup(struct balloc_arena *arena, const char *str, size_t len) {
-  assert(arena != NULL);
+  if (arena == NULL) { return NULL; }
   if (len == 0 || str == NULL) {
     char *tmp = balloc(arena, 1);
     if (tmp) {
@@ -213,6 +207,28 @@ char *bstrndup(struct balloc_arena *arena, const char *str, size_t len) {
     return tmp;
   }
   return _bstrndup(arena, str, len);
+}
+
+char *bstrdup(struct balloc_arena *arena, char *str) {
+    if (arena == NULL) { 
+        return NULL;
+    }
+
+    size_t len = 0; 
+    if (str == NULL || (len = strlen(str)) == 0) {
+        char *tmp = balloc(arena, 1);
+        if (tmp) {
+            *tmp = '\0';
+        }
+        return tmp;
+    }
+
+    char *tmp = balloc(arena, len + 1);
+    if (tmp) {
+      memcpy(tmp, str, len);
+      *(tmp + len) = '\0';
+    }
+    return tmp;
 }
 
 void *bmemdup(struct balloc_arena *arena, void *src, size_t len) {
@@ -226,4 +242,3 @@ void *bmemdup(struct balloc_arena *arena, void *src, size_t len) {
   }
   return tmp;
 }
-
