@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define BALLOC_ALIGN_SIZE(size)                                               \
+(((size) + (BALLOC_ALLOCATOR_ALIGNMENT - 1)) &                              \
+~(BALLOC_ALLOCATOR_ALIGNMENT - 1))
+
 
 static inline size_t _count_chunks(struct balloc_arena *a) {
     size_t i = 0;
@@ -300,10 +304,14 @@ bool test_null_0_alloc(struct balloc_arena *a, int *test, int *passed) {
 }
 
 
-#define test(y, x) do { (x) ? printf("+++ %s : ok\n", (y)) : \
-    printf("+++ %s : failed\n", y); } while(0)
+#define test(y, x) do { bool r = false; \
+    printf("RUN %s\n", (y)); \
+    r = (x); \
+    if (r) { printf(" -> \t\t\t\t\t\t\tOK\n"); } \
+    else { retval = false; printf(" -> \t\t\t\t\t\t\tFAILED\n"); } } while(0)
 
 int main(void) {
+    bool retval = true;
     int test = 0;
     int passed = 0;
     int allocs = 0;
@@ -332,7 +340,7 @@ int main(void) {
         test("Test bstrndup", test_bstrndup(a, &test, &passed));
         test("Test bstrdup", test_bstrdup(a, &test, &passed));
         
-        passed++;
+        if (retval) { passed++; }
         printf("Total test %d, passed %d\n", test, passed);
         balloc_destroy(a);
     } else {

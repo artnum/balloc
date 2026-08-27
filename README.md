@@ -1,7 +1,6 @@
 # Bump Allocator
 
 It is a growable arena allocator. 
-It uses mmap for region (chunk) bigger than 2MiB and malloc for smaller one.
 
   * Fixed size region (chunk) set at creation `balloc_new()`.
   * Reset the whole arena with `balloc_reset()`, previous allocated chunks are

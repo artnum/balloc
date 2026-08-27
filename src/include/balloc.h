@@ -7,13 +7,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * Compile time option, default size of chunks. Default to 4KiB
+ */
+#ifndef BALLOC_DEFAULT_CHUNK_SIZE
+    #define BALLOC_DEFAULT_CHUNK_SIZE 4096
+#endif /* BALLOC_DEFAULT_CHUNK_SIZE */
+
+/**
+ * Compile time option, trigger the use of mmap if an arena is created with
+ * chunk size equal or bigger than this value, default to 2MiB
+ */
+#ifndef BALLOC_MMAP_TRIGGER_SIZE
+    #define BALLOC_MMAP_TRIGGER_SIZE (2 * 1024 * 1024)
+#endif /* BALLOC_MMAP_TRIGGER_SIZE */
+
+/**
+ * Compile time option, to set alignment
+ */
 #ifndef BALLOC_ALLOCATOR_ALIGNMENT
     #define BALLOC_ALLOCATOR_ALIGNMENT _Alignof(max_align_t)
-#endif
+#endif /* BALLOC_ALLOCATOR_ALIGNMENT */
 
-#define BALLOC_ALIGN_SIZE(size)                                               \
-  (((size) + (BALLOC_ALLOCATOR_ALIGNMENT - 1)) &                              \
-   ~(BALLOC_ALLOCATOR_ALIGNMENT - 1))
 
 struct balloc_chunk {
   uint8_t *content;
@@ -31,9 +46,18 @@ struct balloc_arena {
 
 /**
  * Create a new arena.
+ * 
+ * Arena is create on the heap and allocation are done either with mmap or 
+ * malloc, the compile time option BALLOC_MMAP_TRIGGER_SIZE (default to 2MiB),
+ * let you choose for your project which arena is with malloc and which is 
+ * with mmap.
+ * If an allocation is bigger that the mmap trigger size on a arena initialized
+ * with malloc allocation, the allocation will be done with malloc, the trigger
+ * is for the whole arena on startup, not each allocation.
  *
- * @param chunk_size Size of the chunks, if not set it uses getpagesize, if 
- *                   not available it uses 4096bytes
+ * @param chunk_size Size of the chunks, if pass zero default to
+ *                   BALLOC_DEFAULT_CHUNK_SIZE, a compile time option, defaults
+ *                   to 4096.
  * 
  * @return An arena or NULL in case of failure
  */
@@ -127,6 +151,8 @@ char *bstrndup(struct balloc_arena *arena, const char *str, size_t len);
  *
  * @note If a null string is passed, it returns a valid empty string.
  */
-char *bstrdup(struct balloc_arena *arena, char *str);
+static inline char *bstrdup(struct balloc_arena *arena, char *str) {
+    return bstrndup(arena, str, str ? strlen(str) : 0);
+}
 
 #endif /* BALLOC_H__ */
