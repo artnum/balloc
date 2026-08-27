@@ -50,19 +50,23 @@ void balloc_destroy(struct balloc_arena *arena);
  */
 void balloc_reset(struct balloc_arena *arena); 
 /**
- * Compact free list.
+ * Compact arena
+ *
+ * The arena is a built with a linked list of chunks. Each allocation that
+ * would overflow the chunk_size set with balloc_new, it create a new chunk,
+ * add it to the list set "current chunk" as that one. When you call 
+ * balloc_reset, this list is rewinded and next allocations use those previous
+ * chunks.
+ * Compact is a way to free all chunks passed the current one. If you call this
+ * right after balloc_reset, you free everything. If you call before
+ * balloc_reset you basically tailor the memory usage to the smallest version
+ * of your run (you have work loop, the work loop has a variable memory usage
+ * per work, at the end of each iteration, you compact and reset, so the chunks
+ * staying in the list is always the least amount posssible).
  * 
- * @param arena Reduce the current free list by half. The current free list is
- *              not the same size before and after a reset, so if you want to 
- *              reduce the full chunk size, call it after balloc_reset.
+ * @param arena Arena to compact
  */
 void balloc_compact(struct balloc_arena *arena); 
-/**
- * Print some stats about current arena.
- * 
- * @param arena The arena you want to see stats
- */
-void balloc_dump_stat(struct balloc_arena *arena); 
 /**
  * Allocate some memory into the arena.
  * 

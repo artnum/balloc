@@ -27,6 +27,7 @@ build/%.o: src/%.c
 
 test: test.c $(SRCFILES)
 	$(CC) $(CFLAGS) test.c $(SRCFILES) -o test
+	./test
 
 clean:
-	$(RM) $(wildcard $(OBJFILES) $(NAME)) build/$(NAME).a vgcore.*
+	$(RM) $(wildcard $(OBJFILES) $(NAME)) build/$(NAME).a vgcore.* test

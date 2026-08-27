@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdio.h>
 #include <sys/mman.h>
 
 #ifndef getpagesize
@@ -109,8 +108,6 @@ void balloc_compact(struct balloc_arena *arena) {
     arena->current->next = NULL; 
 }
 
-#define _fit_current_chunk(arena, size) ((arena)->current && \
-    ((arena)->current->capacity - (arena)->current->used) >= (size))
 static inline struct balloc_chunk *_find_chunk(struct balloc_arena *arena,
                                                size_t size) {
     struct balloc_chunk *c = NULL;
@@ -131,29 +128,16 @@ void *balloc(struct balloc_arena *arena, size_t size)
   }
   struct balloc_chunk *c = NULL;
 
-#ifndef NDEBUG
-  if (arena->current) {
-      fprintf(stderr, "Current %lu, Size %lu\n",
-              arena->current->capacity - arena->current->used, asize);
-  }
-#endif
-
-
-  if (_fit_current_chunk(arena, asize)) {
-    c = arena->current;
-  } else {
-    c = _find_chunk(arena, asize);
-    if (!c) {
-        c = _new_chunk(arena,
-                       asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
-                       asize + CHUNK_HEADER_SIZE : arena->chunk_size);
-        if (!c) { return NULL; }
-        if (!arena->head) {
-          arena->head = c;
-        } else {
-          c->next = arena->current->next;
-          arena->current->next = c;
-        }
+  if ((c = _find_chunk(arena, asize)) == NULL) {
+    c = _new_chunk(arena,
+                   asize + CHUNK_HEADER_SIZE > arena->chunk_size ?
+                   asize + CHUNK_HEADER_SIZE : arena->chunk_size);
+    if (!c) { return NULL; }
+    if (!arena->head) {
+      arena->head = c;
+    } else {
+      c->next = arena->current->next;
+      arena->current->next = c;
     }
     arena->current = c;
   }
