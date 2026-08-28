@@ -22,12 +22,6 @@
 #endif /* BALLOC_HAVE_MMAP */
 
 /**
- * Compile time option, if want some stats
- */
-#ifdef BALLOC_STATS
-#endif
-    
-/**
  * Compile time option, default size of chunks. Default to 4KiB
  */
 #ifndef BALLOC_DEFAULT_CHUNK_SIZE
@@ -57,18 +51,28 @@ struct balloc_stats {
   size_t allocated_size;
 };
 
+struct balloc_chunk {
+  uint8_t *content;
+  size_t capacity;
+  size_t used;
+  void *next;
+};
+
 struct balloc_arena {
   struct balloc_chunk *head;
   struct balloc_chunk *current;
   size_t chunk_size;
-
-#ifdef BALLOC_STATS
-  struct balloc_stats stats;
-#endif /* BALLOC_STATS */ 
+  size_t epoch;
 
 #if BALLOC_HAVE_MMAP
   bool mmap;
 #endif /* BALLOC_HAVE_MMAP */
+};
+
+struct balloc_mark {
+    struct balloc_chunk *where;
+    size_t used;
+    size_t at;
 };
 
 /**
@@ -191,36 +195,27 @@ char *bstrdup(struct balloc_arena *arena, const char *str);
  *
  */
 size_t balloc_get_size(const void *ptr);
-
-#ifdef BALLOC_STATS
 /**
- * Return stats about allocator
+ * Create a mark token on allocation 
  *
- * If activated, at compile time, the allocator keep stats of allocation.
- */
-struct balloc_stats balloc_get_stats(struct balloc_arena *arena); 
-#endif /* BALLOC_STATS */ 
-/**
- * Mark the allocation chain for rewinding
- *
- * At any point, you can mark the allocation chain in order to create a point
- * to which you can rewind. Any number of point can be written and rewinded to.
- * If the current chunk has allocation active, an new chunk is created.
+ * A token allow to rewind back at the specific moment in the allocation chain.
+ * If you create several tokens, they act as LIFO, last issued token is the 
+ * first to be rewinded if you rewind any token before any other tokens, all
+ * tokens coming after are invalided.
+ * balloc_reset/balloc_compact invalidate all tokens.
  *
  * @param arena The arena to put a mark on.
  *
- * @return True if success, false otherwise
+ * @return A mark token.
  */
-bool balloc_mark(struct balloc_arena *arena);
+struct balloc_mark balloc_mark(struct balloc_arena *arena);
 /**
- * Rewind to the last known mark
- *
- * Iterate up to the last known marked chunk and reset everything above. Set
- * the marked node as current node.
+ * Rewind to the mark
  *
  * @param arena The arena to rewind
+ * @param mark  The mark you want to rewind to.
  *
  * @return True if success, false otherwise
  */
-bool balloc_rewind(struct balloc_arena *arena); 
+bool balloc_rewind(struct balloc_arena *arena, struct balloc_mark mark); 
 #endif /* BALLOC_H__ */

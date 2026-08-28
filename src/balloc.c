@@ -23,16 +23,6 @@ struct balloc_header_ptr {
     size_t size;
 };
 
-#define BMARK 0x01
-
-struct balloc_chunk {
-  uint8_t *content;
-  size_t capacity;
-  size_t used;
-  void *next;
-  uint8_t state; 
-};
-
 static inline struct balloc_chunk *_new_chunk(struct balloc_arena *arena,
                                               size_t chunk_size) {
 #if !BALLOC_HAVE_MMAP
@@ -94,9 +84,7 @@ struct balloc_arena *balloc_new(size_t chunk_size) {
     }
     arena->head = c;
     arena->current = c;
-#ifdef BALLOC_STATS
-    arena->stats.chunk_count = 1;
-#endif /* BALLOC_STATS */
+    arena->epoch = 1;
   }
   return arena;
 }
@@ -131,8 +119,8 @@ void balloc_reset(struct balloc_arena *arena) {
     arena->current = arena->head;
     for(struct balloc_chunk *c = arena->head; c; c = c->next) {
         c->used = 0;
-        c->state = 0;
     }
+    arena->epoch++;
 }
 
 void balloc_compact(struct balloc_arena *arena) {
@@ -148,12 +136,10 @@ void balloc_compact(struct balloc_arena *arena) {
 #else 
         free(c);
 #endif /* BALLOC_HAVE_MMAP */
-#ifdef BALLOC_STATS
-        arena->stats.chunk_count--;
-#endif /* BALLOC_STATS */
         c = n;
     }
-    arena->current->next = NULL; 
+    arena->current->next = NULL;
+    arena->epoch++;
 }
 
 static inline struct balloc_chunk *_find_chunk(struct balloc_arena *arena,
@@ -187,9 +173,6 @@ void *balloc(struct balloc_arena *arena, size_t size)
     if (!c) { return NULL; }
     c->next = arena->current->next;
     arena->current->next = c;
-#ifdef BALLOC_STATS
-        arena->stats.chunk_count++;
-#endif /* BALLOC_STATS */
   }
   arena->current = c;
   struct balloc_header_ptr *h = (struct balloc_header_ptr *)
@@ -197,12 +180,6 @@ void *balloc(struct balloc_arena *arena, size_t size)
   uint8_t *m = c->content + c->used + BALLOC_HEADER_OFFSET;
   h->size = size;
   c->used += asize;
-
-#ifdef BALLOC_STATS
-  arena->stats.requested_size += size;
-  arena->stats.allocated_size += asize;
-#endif /* BALLOC_STATS */
-
 
   return m;
 }
@@ -221,9 +198,6 @@ void *brealloc(struct balloc_arena *arena, void *ptr, size_t size) {
   void *tmp = balloc(arena, size);
   if (tmp) {
     memcpy(tmp, ptr, size < h->size ? size : h->size);
-#ifdef BALLOC_STATS
-    arena->stats.requested_size -= size - h->size;
-#endif /* BALLOC_STATS */
   }
 
   return tmp;
@@ -279,66 +253,28 @@ size_t balloc_get_size(const void *ptr) {
     return header->size;
 }
 
-#ifdef BALLOC_STATS
-struct balloc_stats balloc_get_stats(struct balloc_arena *arena) {
-    if (!arena) {
-        return (struct balloc_stats){
-            .chunk_count = 0,
-            .requested_size = 0,
-            .allocated_size = 0
-        };
-    }
-    return arena->stats;
-}
-#endif /* BALLOC_STATS */
-
-bool balloc_mark(struct balloc_arena *arena) {
+struct balloc_mark balloc_mark(struct balloc_arena *arena) {
+    struct balloc_mark m = { .where = NULL, .used = 0, .at = 0 };
     if (!arena || !arena->current) {
-        return false;
-    }
-
-    /* A mark allow to rewind all allocation done up to the mark, so if there
-     * is used data in a current node, we need a new node for next allocation
-     */
-    if (arena->current->used > 0) {
-        if (arena->current->next) {
-            arena->current = arena->current->next;
-        } else {
-            arena->current->next = _new_chunk(arena, arena->chunk_size);
-            if (!arena->current->next) { return false; }
-            arena->current = arena->current->next;
-        }
-    }
-
-    arena->current->state |= BMARK;
-    return true;
-}
-
-bool balloc_rewind(struct balloc_arena *arena) {
-    if (!arena) {
-        return false;
-    }
-
-    struct balloc_chunk *last_marked = arena->head;
-    for(struct balloc_chunk *c = arena->head;
-        c != arena->current;
-        c = c->next)
-    {
-        if (c->state & BMARK) {
-            last_marked = c;
-        }
+        return m;
     }
     
-    if (!last_marked || last_marked == arena->current) {
-        return true;
+    arena->epoch++;
+    m.at = arena->epoch;
+    m.where = arena->current;
+    m.used = arena->current->used;
+
+    return m;
+}
+
+bool balloc_rewind(struct balloc_arena *arena, struct balloc_mark mark) {
+    if (!arena || !mark.where || mark.at == 0 || mark.at != arena->epoch) {
+        return false;
     }
 
-    for (struct balloc_chunk *c = last_marked;
-         c != arena->current;
-         c = c->next) {
-        c->state = 0;
-        c->used = 0;
-    }
-    arena->current = last_marked;
+    arena->current = mark.where;
+    arena->current->used = mark.used;
+    arena->epoch = mark.at - 1;
+
     return true;
 }

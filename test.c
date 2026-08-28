@@ -8,14 +8,6 @@
 (((size) + (BALLOC_ALLOCATOR_ALIGNMENT - 1)) &                              \
 ~(BALLOC_ALLOCATOR_ALIGNMENT - 1))
 
-struct balloc_chunk {
-  uint8_t *content;
-  size_t capacity;
-  size_t used;
-  void *next;
-  uint8_t state;
-};
-
 static inline size_t _count_chunks(struct balloc_arena *a) {
     size_t i = 0;
     for(struct balloc_chunk *c = a->head; c; c = c->next) { i++; }
@@ -345,20 +337,7 @@ bool test_compact(struct balloc_arena *a, int *test, int *passed) {
 
 bool test_mark(struct balloc_arena *a, int *test, int *passed) {
     balloc_reset(a);
-    (*test)++;
-    void *ptr = (void *)a->current;
-    if (!balloc_rewind(a)) {
-        fprintf(stderr, "[%03d] Rewind on unmarked arena is not a "
-                "failure\n", __LINE__);
-        return false;
-    }
-    if (ptr != (void *)a->current) {
-        fprintf(stderr, "[%03d] Rewind broke the state of the "
-                "arena\n", __LINE__);
-        return false;
-    }
-    (*passed)++;
-
+    
     (*test)++;
     for (int i = 0; i < 5; i++) {
         if(!balloc(a, 3000)) {
@@ -366,19 +345,16 @@ bool test_mark(struct balloc_arena *a, int *test, int *passed) {
             return false;
         }
     }
-    if (!balloc_mark(a)) {
-        fprintf(stderr, "[%03d] Make failed\n", __LINE__);
-        return false;
-    }
+    struct balloc_mark m = balloc_mark(a);
     /* save current */
-    ptr = (void *)a->current;
+    void *ptr = (void *)a->current;
     for (int i = 0; i < 5; i++) {
         if(!balloc(a, 3000)) {
             fprintf(stderr, "[%03d] Allocation failed\n", __LINE__);
             return false;
         }
     }
-    if (!balloc_rewind(a)) {
+    if (!balloc_rewind(a, m)) {
         fprintf(stderr, "[%03d] Rewind on marked arena is failed\n", __LINE__);
         return false;
     }
