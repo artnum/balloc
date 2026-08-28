@@ -342,6 +342,55 @@ bool test_compact(struct balloc_arena *a, int *test, int *passed) {
     return true;
 }
 
+bool test_mark(struct balloc_arena *a, int *test, int *passed) {
+    balloc_reset(a);
+    (*test)++;
+    void *ptr = (void *)a->current;
+    if (!balloc_rewind(a)) {
+        fprintf(stderr, "[%03d] Rewind on unmarked arena is not a "
+                "failure\n", __LINE__);
+        return false;
+    }
+    if (ptr != (void *)a->current) {
+        fprintf(stderr, "[%03d] Rewind broke the state of the "
+                "arena\n", __LINE__);
+        return false;
+    }
+    (*passed)++;
+
+    (*test)++;
+    for (int i = 0; i < 5; i++) {
+        if(!balloc(a, 3000)) {
+            fprintf(stderr, "[%03d] Allocation failed\n", __LINE__);
+            return false;
+        }
+    }
+    if (!balloc_mark(a)) {
+        fprintf(stderr, "[%03d] Make failed\n", __LINE__);
+        return false;
+    }
+    /* save current */
+    ptr = (void *)a->current;
+    for (int i = 0; i < 5; i++) {
+        if(!balloc(a, 3000)) {
+            fprintf(stderr, "[%03d] Allocation failed\n", __LINE__);
+            return false;
+        }
+    }
+    if (!balloc_rewind(a)) {
+        fprintf(stderr, "[%03d] Rewind on marked arena is failed\n", __LINE__);
+        return false;
+    }
+    if (ptr != (void *)a->current) {
+        fprintf(stderr, "[%03d] Rewind did not bring to mark\n", __LINE__);
+        return false;
+    }
+    (*passed)++;
+
+    return true;
+}
+
+
 #define test(y, x) do { bool r = false; \
     printf("RUN %s\n", (y)); \
     r = (x); \
@@ -379,6 +428,7 @@ int main(void) {
         test("Test bstrdup", test_bstrdup(a, &test, &passed));
        
         test("Test compact", test_compact(a, &test, &passed));
+        test("Test mark/rewind", test_mark(a, &test, &passed));
 
         if (retval) { passed++; }
         printf("Total test %d, passed %d\n", test, passed);

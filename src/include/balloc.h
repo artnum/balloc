@@ -200,5 +200,27 @@ size_t balloc_get_size(const void *ptr);
  */
 struct balloc_stats balloc_get_stats(struct balloc_arena *arena); 
 #endif /* BALLOC_STATS */ 
-
+/**
+ * Mark the allocation chain for rewinding
+ *
+ * At any point, you can mark the allocation chain in order to create a point
+ * to which you can rewind. Any number of point can be written and rewinded to.
+ * If the current chunk has allocation active, an new chunk is created.
+ *
+ * @param arena The arena to put a mark on.
+ *
+ * @return True if success, false otherwise
+ */
+bool balloc_mark(struct balloc_arena *arena);
+/**
+ * Rewind to the last known mark
+ *
+ * Iterate up to the last known marked chunk and reset everything above. Set
+ * the marked node as current node.
+ *
+ * @param arena The arena to rewind
+ *
+ * @return True if success, false otherwise
+ */
+bool balloc_rewind(struct balloc_arena *arena); 
 #endif /* BALLOC_H__ */
