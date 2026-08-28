@@ -23,14 +23,8 @@ build:
 build/$(NAME).a: build/balloc.o 
 	$(AR) rcs $@ $^
 
-build/$(NAME)-stats.a: build/balloc-stats.o 
-	$(AR) rcs $@ $^
-
 build/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
-
-build/$(NAME)-stats.o: src/balloc.c
-	$(CC) $(CFLAGS) -D BALLOC_STATS -c $< -o $@
 
 test: test.c $(SRCFILES)
 	echo "Classic run"
