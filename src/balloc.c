@@ -92,6 +92,9 @@ struct balloc_arena *balloc_new(size_t chunk_size) {
     }
     arena->head = c;
     arena->current = c;
+#ifdef BALLOC_STATS
+    arena->stats.chunk_count = 1;
+#endif /* BALLOC_STATS */
   }
   return arena;
 }
@@ -140,6 +143,9 @@ void balloc_compact(struct balloc_arena *arena) {
 #else 
         free(c);
 #endif /* BALLOC_HAVE_MMAP */
+#ifdef BALLOC_STATS
+        arena->stats.chunk_count--;
+#endif /* BALLOC_STATS */
         c = n;
     }
     arena->current->next = NULL; 
@@ -176,6 +182,9 @@ void *balloc(struct balloc_arena *arena, size_t size)
     if (!c) { return NULL; }
     c->next = arena->current->next;
     arena->current->next = c;
+#ifdef BALLOC_STATS
+        arena->stats.chunk_count++;
+#endif /* BALLOC_STATS */
   }
   arena->current = c;
   struct balloc_header_ptr *h = (struct balloc_header_ptr *)
@@ -183,6 +192,12 @@ void *balloc(struct balloc_arena *arena, size_t size)
   uint8_t *m = c->content + c->used + BALLOC_HEADER_OFFSET;
   h->size = size;
   c->used += asize;
+
+#ifdef BALLOC_STATS
+  arena->stats.requested_size += size;
+  arena->stats.allocated_size += asize;
+#endif /* BALLOC_STATS */
+
 
   return m;
 }
@@ -201,6 +216,9 @@ void *brealloc(struct balloc_arena *arena, void *ptr, size_t size) {
   void *tmp = balloc(arena, size);
   if (tmp) {
     memcpy(tmp, ptr, size < h->size ? size : h->size);
+#ifdef BALLOC_STATS
+    arena->stats.requested_size -= size - h->size;
+#endif /* BALLOC_STATS */
   }
 
   return tmp;
@@ -247,3 +265,24 @@ void *bmemdup(struct balloc_arena *arena, const void *src, size_t len) {
   }
   return tmp;
 }
+
+size_t balloc_get_size(const void *ptr) {
+    if (!ptr) {
+        return 0;
+    }
+    struct balloc_header_ptr *header = GET_HEADER(ptr);
+    return header->size;
+}
+
+#ifdef BALLOC_STATS
+struct balloc_stats balloc_get_stats(struct balloc_arena *arena) {
+    if (!arena) {
+        return (struct balloc_stats){
+            .chunk_count = 0,
+            .requested_size = 0,
+            .allocated_size = 0
+        };
+    }
+    return arena->stats;
+}
+#endif /* BALLOC_STATS */ 

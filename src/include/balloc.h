@@ -22,6 +22,12 @@
 #endif /* BALLOC_HAVE_MMAP */
 
 /**
+ * Compile time option, if want some stats
+ */
+#ifdef BALLOC_STATS
+#endif
+    
+/**
  * Compile time option, default size of chunks. Default to 4KiB
  */
 #ifndef BALLOC_DEFAULT_CHUNK_SIZE
@@ -45,10 +51,21 @@
     #define BALLOC_ALLOCATOR_ALIGNMENT _Alignof(max_align_t)
 #endif /* BALLOC_ALLOCATOR_ALIGNMENT */
 
+struct balloc_stats {
+  size_t chunk_count;
+  size_t requested_size;
+  size_t allocated_size;
+};
+
 struct balloc_arena {
   struct balloc_chunk *head;
   struct balloc_chunk *current;
   size_t chunk_size;
+
+#ifdef BALLOC_STATS
+  struct balloc_stats stats;
+#endif /* BALLOC_STATS */ 
+
 #if BALLOC_HAVE_MMAP
   bool mmap;
 #endif /* BALLOC_HAVE_MMAP */
@@ -162,5 +179,26 @@ char *bstrndup(struct balloc_arena *arena, const char *str, size_t len);
  * @note If a null string is passed, it returns a valid empty string.
  */
 char *bstrdup(struct balloc_arena *arena, const char *str); 
+/**
+ * Get current size of memory
+ *
+ * @param ptr Pointer to memory.
+ *
+ * @return Current size.
+ *
+ * @note If pass a pointer that has not been allocated by this allocator, you
+ * will likely get a crash.
+ *
+ */
+size_t balloc_get_size(const void *ptr);
+
+#ifdef BALLOC_STATS
+/**
+ * Return stats about allocator
+ *
+ * If activated, at compile time, the allocator keep stats of allocation.
+ */
+struct balloc_stats balloc_get_stats(struct balloc_arena *arena); 
+#endif /* BALLOC_STATS */ 
 
 #endif /* BALLOC_H__ */
