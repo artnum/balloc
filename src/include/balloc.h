@@ -45,12 +45,6 @@
     #define BALLOC_ALLOCATOR_ALIGNMENT _Alignof(max_align_t)
 #endif /* BALLOC_ALLOCATOR_ALIGNMENT */
 
-struct balloc_stats {
-  size_t chunk_count;
-  size_t requested_size;
-  size_t allocated_size;
-};
-
 struct balloc_chunk {
   uint8_t *content;
   size_t capacity;

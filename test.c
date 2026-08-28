@@ -364,6 +364,107 @@ bool test_mark(struct balloc_arena *a, int *test, int *passed) {
     }
     (*passed)++;
 
+    /* Test rewinding in in lifo-style */
+    (*test)++;
+    for (int i = 0; i < 5; i++) {
+        if(!balloc(a, 3000)) {
+            fprintf(stderr, "[%03d] Allocation failed\n", __LINE__);
+            return false;
+        }
+    }
+    struct balloc_mark m1 = balloc_mark(a);
+    void *ptr1 = (void *)a->current;
+    for (int i = 0; i < 5; i++) {
+        if(!balloc(a, 3000)) {
+            fprintf(stderr, "[%03d] Allocation failed\n", __LINE__);
+            return false;
+        }
+    }
+    struct balloc_mark m2 = balloc_mark(a);
+    void *ptr2 = (void *)a->current;
+    for (int i = 0; i < 5; i++) {
+        if(!balloc(a, 3000)) {
+            fprintf(stderr, "[%03d] Allocation failed\n", __LINE__);
+            return false;
+        }
+    }
+
+    if (!balloc_rewind(a, m2)) {
+        fprintf(stderr, "[%03d] Rewind on marked arena is failed\n", __LINE__);
+        return false;
+    }
+    if (ptr2 != (void *)a->current) {
+        fprintf(stderr, "[%03d] Rewind did not bring to mark\n", __LINE__);
+        return false;
+    }
+
+    if (!balloc_rewind(a, m1)) {
+        fprintf(stderr, "[%03d] Rewind on marked arena is failed\n", __LINE__);
+        return false;
+    }
+    if (ptr1 != (void *)a->current) {
+        fprintf(stderr, "[%03d] Rewind did not bring to mark\n", __LINE__);
+        return false;
+    }
+    (*passed)++;
+
+    (*test)++;
+    m = balloc_mark(a);
+    balloc_reset(a);
+    if (balloc_rewind(a, m)) {
+        fprintf(stderr, "[%03d] Rewind should fail after reset\n", __LINE__);
+        return false;
+    }
+    (*passed)++;
+    
+    (*test)++;
+    m = balloc_mark(a);
+    balloc_compact(a);
+    if (balloc_rewind(a, m)) {
+        fprintf(stderr, "[%03d] Rewind should fail after compact\n", __LINE__);
+        return false;
+    }
+    (*passed)++;
+
+    /* Test rewinding in in lifo-style while breaking order */
+    (*test)++;
+    for (int i = 0; i < 5; i++) {
+        if(!balloc(a, 3000)) {
+            fprintf(stderr, "[%03d] Allocation failed\n", __LINE__);
+            return false;
+        }
+    }
+    m1 = balloc_mark(a);
+    for (int i = 0; i < 5; i++) {
+        if(!balloc(a, 3000)) {
+            fprintf(stderr, "[%03d] Allocation failed\n", __LINE__);
+            return false;
+        }
+    }
+    m2 = balloc_mark(a);
+    for (int i = 0; i < 5; i++) {
+        if(!balloc(a, 3000)) {
+            fprintf(stderr, "[%03d] Allocation failed\n", __LINE__);
+            return false;
+        }
+    }
+
+    if (balloc_rewind(a, m1)) {
+        fprintf(stderr, "[%03d] Out of order rewind not allowed\n", __LINE__);
+        return false;
+    }
+    
+    if (!balloc_rewind(a, m2)) {
+        fprintf(stderr, "[%03d] In order rewind should succeed\n", __LINE__);
+        return false;
+    }
+    if (!balloc_rewind(a, m1)) {
+        fprintf(stderr, "[%03d] In order rewind should succeed\n", __LINE__);
+        return false;
+    }
+
+    (*passed)++;
+
     return true;
 }
 
