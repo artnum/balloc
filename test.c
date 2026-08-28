@@ -13,6 +13,7 @@ struct balloc_chunk {
   size_t capacity;
   size_t used;
   void *next;
+  uint8_t state;
 };
 
 static inline size_t _count_chunks(struct balloc_arena *a) {
